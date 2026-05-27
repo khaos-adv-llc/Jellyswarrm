@@ -5,33 +5,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-@main
-struct JellyswarrmApp: App {
-    @State private var appState = AppState()
-
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environment(appState)
-                .task {
-                    appState.loadFromStorage()
-                    #if os(tvOS)
-                        // Check whether this tvOS system profile needs onboarding
-                        // (runs asynchronously; RootView reacts to the published property)
-                        appState.checkTVOSUserOnboarding()
-                    #endif
-                }
-        }
-        #if os(macOS)
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified)
-        #endif
-    }
-}
-
 // MARK: - Root Router
 
-struct RootView: View {
+public struct RootView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
