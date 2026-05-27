@@ -83,7 +83,7 @@ public struct SeerrDownloadStatus: Codable, Sendable, Equatable {
 
 public struct SeerrMovieResult: Codable, Sendable, Identifiable, Equatable {
     public let id: Int
-    public let mediaType: String
+    public let mediaType: String?
     public let popularity: Double?
     public let posterPath: String?
     public let backdropPath: String?
@@ -122,7 +122,7 @@ public struct SeerrMovieResult: Codable, Sendable, Identifiable, Equatable {
 
 public struct SeerrTvResult: Codable, Sendable, Identifiable, Equatable {
     public let id: Int
-    public let mediaType: String
+    public let mediaType: String?
     public let popularity: Double?
     public let posterPath: String?
     public let backdropPath: String?
@@ -313,6 +313,14 @@ public struct RequestCreate: Codable, Sendable {
 
 // MARK: - Paginated Response
 
+/// Paginated response from Seerr endpoints.
+///
+/// Different Seerr endpoints use different envelope shapes:
+///   - `/api/v1/discover/*` returns `{ page, totalPages, totalResults, results }` (flat)
+///   - `/api/v1/request` returns `{ pageInfo: { pages, pageSize, results, page }, results }` (nested)
+///
+/// This type decodes either shape transparently and exposes `pageInfo` as the
+/// canonical accessor so callers don't need to care which endpoint they hit.
 public struct SeerrPage<T: Codable & Sendable>: Codable, Sendable {
     public let pageInfo: PageInfo
     public let results: [T]
@@ -322,6 +330,34 @@ public struct SeerrPage<T: Codable & Sendable>: Codable, Sendable {
         public let pageSize: Int
         public let results: Int
         public let page: Int
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case pageInfo, results, page, totalPages, totalResults
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        results = try container.decodeIfPresent([T].self, forKey: .results) ?? []
+        if let nested = try container.decodeIfPresent(PageInfo.self, forKey: .pageInfo) {
+            pageInfo = nested
+        } else {
+            let page = try container.decodeIfPresent(Int.self, forKey: .page) ?? 1
+            let totalPages = try container.decodeIfPresent(Int.self, forKey: .totalPages) ?? 1
+            let totalResults = try container.decodeIfPresent(Int.self, forKey: .totalResults) ?? results.count
+            pageInfo = PageInfo(
+                pages: totalPages,
+                pageSize: results.count,
+                results: totalResults,
+                page: page
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(pageInfo, forKey: .pageInfo)
+        try container.encode(results, forKey: .results)
     }
 }
 
