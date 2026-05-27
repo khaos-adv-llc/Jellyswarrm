@@ -107,8 +107,8 @@ public enum KeychainManager {
             kSecAttrService: sharedService,
             kSecAttrAccount: key,
             kSecValueData: data,
-            // Always-accessible so any tvOS profile can read server config
-            kSecAttrAccessible: kSecAttrAccessibleAlwaysThisDeviceOnly,
+            // Accessible after first unlock so any tvOS profile can read server config
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         #if os(tvOS)
             // Opt out of per-user data protection so the item is device-wide

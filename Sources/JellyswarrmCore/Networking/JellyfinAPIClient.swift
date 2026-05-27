@@ -3,9 +3,7 @@
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
-#if os(iOS) || os(tvOS)
-    import UIKit
-#elseif os(macOS)
+#if os(macOS)
     import AppKit
 #endif
 
@@ -508,8 +506,10 @@ public enum UIDeviceHelper {
     }
 
     public static var deviceName: String {
+        // UIDevice.current is @MainActor-isolated, so we use ProcessInfo/Host
+        // instead — both are safe to call from any concurrency context.
         #if os(iOS) || os(tvOS)
-            return UIDevice.current.name
+            return ProcessInfo.processInfo.hostName
         #elseif os(macOS)
             return Host.current().localizedName ?? "Mac"
         #else

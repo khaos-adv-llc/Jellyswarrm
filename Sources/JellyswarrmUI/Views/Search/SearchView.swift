@@ -136,7 +136,7 @@ struct SearchView: View {
 
                 if let userData = item.userData, userData.hasProgress {
                     ProgressView(value: userData.normalizedProgress)
-                        .tint(.accentColor)
+                        .tint(Color.accentColor)
                         .frame(maxWidth: 120)
                 }
             }
@@ -186,7 +186,7 @@ struct SearchView: View {
             Spacer()
 
             Image(systemName: "plus.circle")
-                .foregroundStyle(.accentColor)
+                .foregroundStyle(Color.accentColor)
         }
         .padding(.vertical, 4)
     }
