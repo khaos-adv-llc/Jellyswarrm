@@ -119,7 +119,7 @@ public struct MediaCardView: View {
                 .foregroundStyle(.primary)
 
             if let year = item.productionYear {
-                Text("\(year)")
+                Text(String(year))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

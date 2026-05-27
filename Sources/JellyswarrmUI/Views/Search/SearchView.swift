@@ -130,7 +130,7 @@ public struct SearchView: View {
                     if let year = item.productionYear {
                         Text("·")
                             .foregroundStyle(.secondary)
-                        Text("\(year)")
+                        Text(String(year))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

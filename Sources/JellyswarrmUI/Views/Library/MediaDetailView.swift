@@ -15,6 +15,7 @@ public struct MediaDetailView: View {
     @Environment(AppState.self) private var appState
 
     @State private var detail: MediaItem?
+    @State private var seriesDetail: MediaItem?
     @State private var isLoading = true
     @State private var showPlayer = false
     @State private var seasons: [MediaItem] = []
@@ -23,6 +24,16 @@ public struct MediaDetailView: View {
     @State private var isLoadingEpisodes = false
 
     var displayItem: MediaItem { detail ?? item }
+
+    /// Item whose artwork should fill the header. For a series this is the
+    /// series itself; for an episode we use the parent series so the hero
+    /// shows series-level art instead of an episode still.
+    var headerItem: MediaItem {
+        if displayItem.type == .episode, let series = seriesDetail {
+            return series
+        }
+        return displayItem
+    }
 
     public var body: some View {
         ScrollView {
@@ -55,6 +66,8 @@ public struct MediaDetailView: View {
             isLoading = false
             if displayItem.type == .series {
                 await loadSeasons()
+            } else if displayItem.type == .episode, let seriesId = displayItem.seriesId {
+                seriesDetail = try? await libraryVM.getDetail(for: seriesId)
             }
         }
         .fullScreenCover(isPresented: $showPlayer) {
@@ -172,7 +185,7 @@ public struct MediaDetailView: View {
 
     private var backdropSection: some View {
         ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: libraryVM.imageURL(for: displayItem, type: .backdrop, maxWidth: 1280)) { phase in
+            AsyncImage(url: headerImageURL) { phase in
                 switch phase {
                 case let .success(image):
                     image.resizable()
@@ -192,7 +205,7 @@ public struct MediaDetailView: View {
             )
             .frame(height: 280)
 
-            Text(displayItem.name)
+            Text(headerItem.name)
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
@@ -201,12 +214,19 @@ public struct MediaDetailView: View {
         }
     }
 
+    private var headerImageURL: URL? {
+        if let backdrop = libraryVM.imageURL(for: headerItem, type: .backdrop, maxWidth: 1280) {
+            return backdrop
+        }
+        return libraryVM.imageURL(for: headerItem, type: .primary, maxWidth: 1280)
+    }
+
     // MARK: - Metadata
 
     private var metadataSection: some View {
         HStack(spacing: 12) {
             if let year = displayItem.productionYear {
-                metaBadge("\(year)", icon: "calendar")
+                metaBadge(String(year), icon: "calendar")
             }
             if let rating = displayItem.officialRating {
                 metaBadge(rating, icon: "checkmark.seal")
