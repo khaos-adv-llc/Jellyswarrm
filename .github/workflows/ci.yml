@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build & Test ────────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test (${{ matrix.platform }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: iOS
+            destination: "platform=iOS Simulator,name=iPhone 16 Pro,OS=latest"
+          - name: tvOS
+            destination: "platform=tvOS Simulator,name=Apple TV 4K (3rd generation),OS=latest"
+          - name: macOS
+            destination: "platform=macOS"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        working-directory: project
+        run: swift package resolve
+
+      - name: Build (${{ matrix.platform.name }})
+        working-directory: project
+        run: |
+          xcodebuild build \
+            -scheme Jellyswarrm \
+            -destination "${{ matrix.platform.destination }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+      - name: Test (${{ matrix.platform.name }})
+        working-directory: project
+        run: |
+          xcodebuild test \
+            -scheme Jellyswarrm \
+            -destination "${{ matrix.platform.destination }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+  # ── SwiftFormat Lint ────────────────────────────────────────────────────────
+  swiftformat-lint:
+    name: SwiftFormat Lint
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: Run SwiftFormat (lint only)
+        working-directory: project
+        run: swiftformat --lint Sources/ Tests/
+
+  # ── License Header Check ────────────────────────────────────────────────────
+  license-check:
+    name: License Header Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check GPL header in Swift files
+        run: |
+          MISSING=0
+          while IFS= read -r -d '' file; do
+            if ! grep -q "GPL" "$file"; then
+              echo "Missing GPL header: $file"
+              MISSING=$((MISSING + 1))
+            fi
+          done < <(find project/Sources -name "*.swift" -print0)
+          if [ "$MISSING" -gt 0 ]; then
+            echo ""
+            echo "$MISSING file(s) are missing GPL license headers."
+            exit 1
+          fi
+          echo "All Swift source files have license headers."
