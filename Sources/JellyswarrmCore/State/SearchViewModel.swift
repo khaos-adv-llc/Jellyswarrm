@@ -23,6 +23,12 @@ public final class SearchViewModel {
         self.appState = appState
     }
 
+    // MARK: - Credential helper
+
+    private var seerrCredential: SeerrCredential? {
+        appState.credentialForCurrentSeerrServer()
+    }
+
     /// Call when query changes — debounces automatically
     public func queryChanged(_ newQuery: String) {
         query = newQuery
@@ -64,18 +70,15 @@ public final class SearchViewModel {
 
             // Search Seerr
             if let seerrServer = appState.seerrServer,
-               let apiKey = appState.apiKeyForCurrentSeerrServer() {
+               let cred = seerrCredential {
                 group.addTask {
                     do {
                         let page = try await self.seerrAPI.search(
                             baseURL: seerrServer.baseURL,
-                            apiKey: apiKey,
+                            credential: cred,
                             query: query
                         )
-                        await MainActor.run {
-                            // Filter to items not already on server for "discover" section
-                            self.seerrResults = page.results
-                        }
+                        await MainActor.run { self.seerrResults = page.results }
                     } catch {}
                 }
             }

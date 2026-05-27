@@ -54,24 +54,32 @@ public final class DiscoverViewModel {
         self.appState = appState
     }
 
+    // MARK: - Credential helper
+
+    /// Returns the resolved SeerrCredential for the current user, or nil if Seerr
+    /// is not configured or the user has not yet authenticated.
+    private var credential: SeerrCredential? {
+        appState.credentialForCurrentSeerrServer()
+    }
+
     // MARK: - Load
 
     public func loadInitialData() async {
         guard appState.hasSeerrConfigured,
               let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else { return }
+              let cred = credential else { return }
 
         isLoading = true
         error = nil
 
         do {
-            async let trendingTask = seerrAPI.discoverTrending(baseURL: server.baseURL, apiKey: apiKey)
-            async let moviesTask = seerrAPI.discoverMovies(baseURL: server.baseURL, apiKey: apiKey)
-            async let tvTask = seerrAPI.discoverTV(baseURL: server.baseURL, apiKey: apiKey)
-            async let upcomingMoviesTask = seerrAPI.discoverMoviesUpcoming(baseURL: server.baseURL, apiKey: apiKey)
-            async let upcomingTVTask = seerrAPI.discoverTVUpcoming(baseURL: server.baseURL, apiKey: apiKey)
-            async let movieGenresTask = seerrAPI.getMovieGenres(baseURL: server.baseURL, apiKey: apiKey)
-            async let tvGenresTask = seerrAPI.getTVGenres(baseURL: server.baseURL, apiKey: apiKey)
+            async let trendingTask      = seerrAPI.discoverTrending(baseURL: server.baseURL, credential: cred)
+            async let moviesTask        = seerrAPI.discoverMovies(baseURL: server.baseURL, credential: cred)
+            async let tvTask            = seerrAPI.discoverTV(baseURL: server.baseURL, credential: cred)
+            async let upcomingMoviesTask = seerrAPI.discoverMoviesUpcoming(baseURL: server.baseURL, credential: cred)
+            async let upcomingTVTask    = seerrAPI.discoverTVUpcoming(baseURL: server.baseURL, credential: cred)
+            async let movieGenresTask   = seerrAPI.getMovieGenres(baseURL: server.baseURL, credential: cred)
+            async let tvGenresTask      = seerrAPI.getTVGenres(baseURL: server.baseURL, credential: cred)
 
             let (trending, movs, tv, upMovies, upTV, mGenres, tGenres) = try await (
                 trendingTask, moviesTask, tvTask,
@@ -80,22 +88,22 @@ public final class DiscoverViewModel {
             )
 
             trendingItems = trending.results
-            trendingPage = trending.pageInfo.page
+            trendingPage  = trending.pageInfo.page
             hasMoreTrending = trending.pageInfo.page < trending.pageInfo.pages
 
-            movies = movs.results
-            moviesPage = movs.pageInfo.page
+            movies      = movs.results
+            moviesPage  = movs.pageInfo.page
             hasMoreMovies = movs.pageInfo.page < movs.pageInfo.pages
 
-            tvShows = tv.results
-            tvPage = tv.pageInfo.page
+            tvShows  = tv.results
+            tvPage   = tv.pageInfo.page
             hasMoreTV = tv.pageInfo.page < tv.pageInfo.pages
 
             upcomingMovies = upMovies.results
-            upcomingTV = upTV.results
+            upcomingTV     = upTV.results
 
             movieGenres = mGenres
-            tvGenres = tGenres
+            tvGenres    = tGenres
 
         } catch let e as NetworkError {
             error = e
@@ -111,19 +119,19 @@ public final class DiscoverViewModel {
     public func loadMoreMovies() async {
         guard !isLoadingMore, hasMoreMovies,
               let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else { return }
+              let cred = credential else { return }
 
         isLoadingMore = true
         let nextPage = moviesPage + 1
         do {
             let page = try await seerrAPI.discoverMovies(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 page: nextPage,
                 genre: selectedMovieGenre?.id
             )
             movies.append(contentsOf: page.results)
-            moviesPage = page.pageInfo.page
+            moviesPage  = page.pageInfo.page
             hasMoreMovies = page.pageInfo.page < page.pageInfo.pages
         } catch {}
         isLoadingMore = false
@@ -132,19 +140,19 @@ public final class DiscoverViewModel {
     public func loadMoreTV() async {
         guard !isLoadingMore, hasMoreTV,
               let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else { return }
+              let cred = credential else { return }
 
         isLoadingMore = true
         let nextPage = tvPage + 1
         do {
             let page = try await seerrAPI.discoverTV(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 page: nextPage,
                 genre: selectedTVGenre?.id
             )
             tvShows.append(contentsOf: page.results)
-            tvPage = page.pageInfo.page
+            tvPage   = page.pageInfo.page
             hasMoreTV = page.pageInfo.page < page.pageInfo.pages
         } catch {}
         isLoadingMore = false
@@ -155,16 +163,16 @@ public final class DiscoverViewModel {
     public func filterMoviesByGenre(_ genre: SeerrGenre?) async {
         selectedMovieGenre = genre
         guard let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else { return }
+              let cred = credential else { return }
         do {
             let page = try await seerrAPI.discoverMovies(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 page: 1,
                 genre: genre?.id
             )
-            movies = page.results
-            moviesPage = 1
+            movies      = page.results
+            moviesPage  = 1
             hasMoreMovies = page.pageInfo.page < page.pageInfo.pages
         } catch {}
     }
@@ -172,16 +180,16 @@ public final class DiscoverViewModel {
     public func filterTVByGenre(_ genre: SeerrGenre?) async {
         selectedTVGenre = genre
         guard let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else { return }
+              let cred = credential else { return }
         do {
             let page = try await seerrAPI.discoverTV(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 page: 1,
                 genre: genre?.id
             )
-            tvShows = page.results
-            tvPage = 1
+            tvShows  = page.results
+            tvPage   = 1
             hasMoreTV = page.pageInfo.page < page.pageInfo.pages
         } catch {}
     }
@@ -190,14 +198,14 @@ public final class DiscoverViewModel {
 
     public func requestMovie(movieId: Int) async throws {
         guard let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else {
+              let cred = credential else {
             throw NetworkError.unauthorized
         }
         pendingRequestIds.insert(movieId)
         do {
             _ = try await seerrAPI.createRequest(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 request: RequestCreate(mediaType: "movie", mediaId: movieId)
             )
             successfulRequestIds.insert(movieId)
@@ -210,14 +218,14 @@ public final class DiscoverViewModel {
 
     public func requestTV(tvId: Int, seasons: [Int]? = nil) async throws {
         guard let server = appState.seerrServer,
-              let apiKey = appState.apiKeyForCurrentSeerrServer() else {
+              let cred = credential else {
             throw NetworkError.unauthorized
         }
         pendingRequestIds.insert(tvId)
         do {
             _ = try await seerrAPI.createRequest(
                 baseURL: server.baseURL,
-                apiKey: apiKey,
+                credential: cred,
                 request: RequestCreate(mediaType: "tv", mediaId: tvId, seasons: seasons)
             )
             successfulRequestIds.insert(tvId)
