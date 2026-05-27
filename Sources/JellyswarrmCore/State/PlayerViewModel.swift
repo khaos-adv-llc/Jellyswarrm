@@ -63,10 +63,17 @@ public final class PlayerViewModel {
             // so we resolve them against baseURL rather than appending as path components.
             if source.supportsDirectPlay, let directPath = source.directStreamUrl {
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
+                print("[Player] Direct play URL: \(playbackURL?.absoluteString ?? "nil")")
             } else if let transPath = source.transcodingUrl {
-                // Transcode URL already contains all needed query params from the server
                 playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
+                print("[Player] Transcode URL: \(playbackURL?.absoluteString ?? "nil")")
+            } else {
+                print("[Player] ERROR: no directStreamUrl or transcodingUrl in source")
+                print("[Player] supportsDirectPlay=\(source.supportsDirectPlay) supportsDirectStream=\(source.supportsDirectStream) supportsTranscoding=\(source.supportsTranscoding)")
             }
+            print("[Player] MediaSource id=\(source.id) container=\(source.container ?? "nil") bitrate=\(source.bitrate ?? 0)")
+            print("[Player] directStreamUrl=\(source.directStreamUrl ?? "nil")")
+            print("[Player] transcodingUrl=\(source.transcodingUrl ?? "nil")")
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
 
