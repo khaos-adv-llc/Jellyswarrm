@@ -131,9 +131,11 @@ public struct VideoPlayerView: View {
             let onDismiss: () -> Void
             init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
 
-            func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
-                onDismiss()
-            }
+            #if os(tvOS)
+                func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
+                    onDismiss()
+                }
+            #endif
         }
     }
 #endif
