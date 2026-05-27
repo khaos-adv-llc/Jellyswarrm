@@ -8,9 +8,11 @@ import SwiftUI
 // MARK: - Root Router
 
 public struct RootView: View {
+    public init() {}
+
     @Environment(AppState.self) private var appState
 
-    var body: some View {
+    public var body: some View {
         Group {
             #if os(tvOS)
                 tvOSRootView
