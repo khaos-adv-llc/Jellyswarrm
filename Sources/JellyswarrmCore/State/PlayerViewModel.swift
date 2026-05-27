@@ -78,14 +78,38 @@ public final class PlayerViewModel {
             print("[Player] directStreamUrl: \(resolvedSource.directStreamUrl ?? "-")")
             print("[Player] transcodingUrl: \(resolvedSource.transcodingUrl ?? "-")")
 
-            if resolvedSource.supportsDirectPlay, let directPath = resolvedSource.directStreamUrl {
+            if let directPath = resolvedSource.directStreamUrl {
+                // Server provided a direct stream path
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
-                print("[Player] Using direct play: \(playbackURL?.absoluteString ?? "-")")
+                print("[Player] Using server-provided stream URL")
             } else if let transPath = resolvedSource.transcodingUrl {
+                // Server provided a transcode path
                 playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
-                print("[Player] Using transcode: \(playbackURL?.absoluteString ?? "-")")
+                print("[Player] Using server-provided transcode URL")
+            } else if resolvedSource.supportsDirectStream {
+                // Jellyfin didn't return a URL but says direct stream is supported.
+                // Construct the VideoStream URL manually — this is the standard pattern.
+                playbackURL = buildDirectStreamURL(
+                    source: resolvedSource,
+                    server: server,
+                    token: token,
+                    audioIndex: chosenAudio,
+                    subtitleIndex: chosenSub
+                )
+                print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
+            } else if resolvedSource.supportsTranscoding {
+                // Ask Jellyfin for a transcode URL by constructing the HLS endpoint
+                playbackURL = buildTranscodeURL(
+                    source: resolvedSource,
+                    item: item,
+                    server: server,
+                    token: token,
+                    audioIndex: chosenAudio,
+                    subtitleIndex: chosenSub
+                )
+                print("[Player] Using manually constructed transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else {
-                print("[Player] ERROR: still no stream URLs after second call")
+                print("[Player] ERROR: no playback path available")
                 throw NetworkError.emptyResponse
             }
 
@@ -188,6 +212,67 @@ public final class PlayerViewModel {
     }
 
     // MARK: - URL Helpers
+
+    /// Constructs a Jellyfin direct-stream URL manually.
+    /// Used when PlaybackInfo returns SupportsDirectStream=true but no DirectStreamUrl.
+    /// Pattern: /Videos/{id}/stream.{container}?Static=true&MediaSourceId={id}&api_key={token}
+    private func buildDirectStreamURL(
+        source: MediaSource,
+        server: JellyfinServer,
+        token: String,
+        audioIndex: Int?,
+        subtitleIndex: Int?
+    ) -> URL? {
+        let container = source.container ?? "mkv"
+        let base = server.baseURL.absoluteString.hasSuffix("/")
+            ? server.baseURL.absoluteString
+            : server.baseURL.absoluteString + "/"
+        let path = "Videos/\(source.id)/stream.\(container)"
+        guard var components = URLComponents(string: base + path) else { return nil }
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "Static", value: "true"),
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
+            URLQueryItem(name: "api_key", value: token),
+        ]
+        if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
+        if let a = audioIndex { items.append(URLQueryItem(name: "AudioStreamIndex", value: "\(a)")) }
+        if let s = subtitleIndex { items.append(URLQueryItem(name: "SubtitleStreamIndex", value: "\(s)")) }
+        components.queryItems = items
+        return components.url
+    }
+
+    /// Constructs a Jellyfin HLS transcode URL manually.
+    /// Used when PlaybackInfo returns SupportsTranscoding=true but no TranscodingUrl.
+    private func buildTranscodeURL(
+        source: MediaSource,
+        item: MediaItem,
+        server: JellyfinServer,
+        token: String,
+        audioIndex: Int?,
+        subtitleIndex: Int?
+    ) -> URL? {
+        let base = server.baseURL.absoluteString.hasSuffix("/")
+            ? server.baseURL.absoluteString
+            : server.baseURL.absoluteString + "/"
+        let path = "Videos/\(item.id)/master.m3u8"
+        guard var components = URLComponents(string: base + path) else { return nil }
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
+            URLQueryItem(name: "VideoCodec", value: "h264"),
+            URLQueryItem(name: "AudioCodec", value: "aac"),
+            URLQueryItem(name: "VideoBitrate", value: "8000000"),
+            URLQueryItem(name: "AudioBitrate", value: "384000"),
+            URLQueryItem(name: "MaxWidth", value: "1920"),
+            URLQueryItem(name: "MaxHeight", value: "1080"),
+            URLQueryItem(name: "api_key", value: token),
+        ]
+        if let a = audioIndex { items.append(URLQueryItem(name: "AudioStreamIndex", value: "\(a)")) }
+        if let s = subtitleIndex { items.append(URLQueryItem(name: "SubtitleStreamIndex", value: "\(s)")) }
+        components.queryItems = items
+        return components.url
+    }
 
     /// Resolves a Jellyfin path (e.g. "/Videos/id/stream.mp4?params")
     /// against the server base URL and appends the auth token so AVPlayer

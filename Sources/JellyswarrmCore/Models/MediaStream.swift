@@ -89,6 +89,8 @@ public struct MediaSource: Codable, Sendable, Identifiable, Hashable {
     public let mediaStreams: [MediaStream]?
     public let defaultAudioStreamIndex: Int?
     public let defaultSubtitleStreamIndex: Int?
+    public let eTag: String?
+    public let requiresOpening: Bool
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
@@ -108,5 +110,7 @@ public struct MediaSource: Codable, Sendable, Identifiable, Hashable {
         case mediaStreams = "MediaStreams"
         case defaultAudioStreamIndex = "DefaultAudioStreamIndex"
         case defaultSubtitleStreamIndex = "DefaultSubtitleStreamIndex"
+        case eTag = "ETag"
+        case requiresOpening = "RequiresOpening"
     }
 }
