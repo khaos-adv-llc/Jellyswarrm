@@ -157,7 +157,7 @@ public actor SeerrAPIClient {
 
     /// Build auth headers for either API key or session mode.
     /// AppState calls this after resolving which credential the current user has.
-    public func credential(for server: SeerrServer) -> SeerrCredential? {
+    public nonisolated func credential(for server: SeerrServer) -> SeerrCredential? {
         switch server.authMode {
         case .apiKey:
             guard let key = try? KeychainManager.loadSeerrApiKey(for: server.id) else { return nil }
