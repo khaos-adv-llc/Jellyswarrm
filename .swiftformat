@@ -8,9 +8,11 @@
 --wrapcollections before-first
 --maxwidth 120
 --disable redundantSelf
+--disable docComments
+--disable wrapPropertyBodies
+--disable redundantVariable
 --enable isEmpty
 --enable blankLinesAtEndOfScope
---enable blankLinesBetweenScopes
 --enable consecutiveBlankLines
 --enable consecutiveSpaces
 --enable duplicateImports

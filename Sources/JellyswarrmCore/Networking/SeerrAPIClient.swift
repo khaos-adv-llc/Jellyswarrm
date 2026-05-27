@@ -65,9 +65,8 @@ public actor SeerrAPIClient {
         else {
             throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
         }
-        // Store the full cookie header value so we can replay it exactly
-        let rawCookieHeader = headers["Set-Cookie"] ?? "\(cookies.first?.name ?? "session")=\(sessionCookie)"
-        return rawCookieHeader
+        // Return the full Set-Cookie header value so we can replay it exactly
+        return headers["Set-Cookie"] ?? "\(cookies.first?.name ?? "session")=\(sessionCookie)"
     }
 
     /// Authenticate using a local Seerr account (email + password).

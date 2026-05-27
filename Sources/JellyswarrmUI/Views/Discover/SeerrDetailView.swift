@@ -17,13 +17,21 @@ struct SeerrDetailView: View {
     @State private var showRequestForm = false
 
     private var title: String { movie?.title ?? tv?.name ?? "" }
+
     private var overview: String? { movie?.overview ?? tv?.overview }
+
     private var posterURL: URL? { movie?.fullPosterURL ?? tv?.fullPosterURL }
+
     private var backdropURL: URL? { movie?.fullBackdropURL ?? tv?.fullBackdropURL }
+
     private var year: String? { movie?.releaseYear ?? tv?.releaseYear }
+
     private var rating: Double? { movie?.voteAverage ?? tv?.voteAverage }
+
     private var mediaInfo: SeerrMediaInfo? { movie?.mediaInfo ?? tv?.mediaInfo }
+
     private var mediaId: Int { movie?.id ?? tv?.id ?? 0 }
+
     private var isTV: Bool { tv != nil }
 
     var body: some View {

@@ -63,8 +63,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install SwiftFormat
-        run: brew install swiftformat
+      - name: Install SwiftFormat 0.54.6
+        run: |
+          curl -sL https://github.com/nicklockwood/SwiftFormat/releases/download/0.54.6/swiftformat.zip \
+            -o /tmp/swiftformat.zip
+          unzip -q /tmp/swiftformat.zip -d /tmp/swiftformat_bin
+          sudo mv /tmp/swiftformat_bin/swiftformat /usr/local/bin/swiftformat
+          swiftformat --version
 
       - name: Run SwiftFormat (lint only)
         run: swiftformat --lint Sources/ Tests/
