@@ -209,7 +209,12 @@ public actor JellyfinAPIClient {
         if let audioStreamIndex { body["AudioStreamIndex"] = audioStreamIndex }
         if let subtitleStreamIndex { body["SubtitleStreamIndex"] = subtitleStreamIndex }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return try await perform(request: request)
+        // DEBUG: log raw response so we can inspect stream URLs
+        let raw = try await rawPerform(request: request)
+        if let json = String(data: raw, encoding: .utf8) {
+            print("[PlaybackInfo raw] \(json.prefix(2000))")
+        }
+        return try decoder.decode(PlaybackInfo.self, from: raw)
     }
 
     public func searchItems(
