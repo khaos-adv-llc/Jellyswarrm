@@ -45,35 +45,49 @@ public final class PlayerViewModel {
         currentItem = item
 
         do {
+            // First call: get available media sources
             let info = try await api.getPlaybackInfo(server: server, token: token, itemId: item.id)
             playbackInfo = info
 
             guard let source = info.mediaSources.first else {
                 throw NetworkError.emptyResponse
             }
-            selectedSource = source
 
-            // Set default audio/subtitle streams
-            audioStreamIndex = source.defaultAudioStreamIndex
-            subtitleStreamIndex = source.defaultSubtitleStreamIndex
+            let chosenAudio = source.defaultAudioStreamIndex
+            let chosenSub = source.defaultSubtitleStreamIndex
+            audioStreamIndex = chosenAudio
+            subtitleStreamIndex = chosenSub
 
-            // Prefer direct play, fall back to transcode.
-            // AVPlayer cannot send auth headers, so we append the token as a query param.
-            // directStreamUrl / transcodingUrl are already full paths (e.g. "/Videos/…"),
-            // so we resolve them against baseURL rather than appending as path components.
-            if source.supportsDirectPlay, let directPath = source.directStreamUrl {
+            // Second call with mediaSourceId — Jellyfin only populates
+            // directStreamUrl / transcodingUrl when a specific source is requested
+            let resolvedInfo = try await api.getPlaybackInfo(
+                server: server,
+                token: token,
+                itemId: item.id,
+                mediaSourceId: source.id,
+                audioStreamIndex: chosenAudio,
+                subtitleStreamIndex: chosenSub
+            )
+
+            let resolvedSource = resolvedInfo.mediaSources.first(where: { $0.id == source.id })
+                ?? resolvedInfo.mediaSources.first
+                ?? source
+            selectedSource = resolvedSource
+
+            print("[Player] source id=\(resolvedSource.id) container=\(resolvedSource.container ?? \"nil\")")
+            print("[Player] directStreamUrl=\(resolvedSource.directStreamUrl ?? \"nil\")")
+            print("[Player] transcodingUrl=\(resolvedSource.transcodingUrl ?? \"nil\")")
+
+            if resolvedSource.supportsDirectPlay, let directPath = resolvedSource.directStreamUrl {
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
-                print("[Player] Direct play URL: \(playbackURL?.absoluteString ?? "nil")")
-            } else if let transPath = source.transcodingUrl {
+                print("[Player] Using direct play: \(playbackURL?.absoluteString ?? \"nil\")")
+            } else if let transPath = resolvedSource.transcodingUrl {
                 playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
-                print("[Player] Transcode URL: \(playbackURL?.absoluteString ?? "nil")")
+                print("[Player] Using transcode: \(playbackURL?.absoluteString ?? \"nil\")")
             } else {
-                print("[Player] ERROR: no directStreamUrl or transcodingUrl in source")
-                print("[Player] supportsDirectPlay=\(source.supportsDirectPlay) supportsDirectStream=\(source.supportsDirectStream) supportsTranscoding=\(source.supportsTranscoding)")
+                print("[Player] ERROR: still no stream URLs after second call")
+                throw NetworkError.emptyResponse
             }
-            print("[Player] MediaSource id=\(source.id) container=\(source.container ?? "nil") bitrate=\(source.bitrate ?? 0)")
-            print("[Player] directStreamUrl=\(source.directStreamUrl ?? "nil")")
-            print("[Player] transcodingUrl=\(source.transcodingUrl ?? "nil")")
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
 

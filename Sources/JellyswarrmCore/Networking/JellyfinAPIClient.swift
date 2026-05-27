@@ -183,15 +183,31 @@ public actor JellyfinAPIClient {
     public func getPlaybackInfo(
         server: JellyfinServer,
         token: String,
-        itemId: String
+        itemId: String,
+        mediaSourceId: String? = nil,
+        audioStreamIndex: Int? = nil,
+        subtitleStreamIndex: Int? = nil
     ) async throws -> PlaybackInfo {
-        let url = server.baseURL.appendingPathComponent("/Items/\(itemId)/PlaybackInfo")
+        var components = URLComponents(
+            url: server.baseURL.appendingPathComponent("/Items/\(itemId)/PlaybackInfo"),
+            resolvingAgainstBaseURL: false
+        )!
+        // UserId must be a query param for Jellyfin to populate stream URLs
+        components.queryItems = [
+            URLQueryItem(name: "UserId", value: server.userId),
+        ]
+        guard let url = components.url else { throw NetworkError.invalidURL }
         var request = makeRequest(url: url, server: server, token: token)
         request.httpMethod = "POST"
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "UserId": server.userId,
             "DeviceProfile": defaultDeviceProfile(),
+            "AutoOpenLiveStream": true,
+            "IsPlayback": true,
         ]
+        if let mediaSourceId { body["MediaSourceId"] = mediaSourceId }
+        if let audioStreamIndex { body["AudioStreamIndex"] = audioStreamIndex }
+        if let subtitleStreamIndex { body["SubtitleStreamIndex"] = subtitleStreamIndex }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try await perform(request: request)
     }
