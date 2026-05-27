@@ -26,20 +26,12 @@ public struct VideoPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let player {
-                #if os(tvOS)
-                    // On tvOS use the full AVPlayerViewController via representable
-                    TVOSPlayerView(player: player, item: item, playerVM: playerVM)
-                        .ignoresSafeArea()
-                #else
-                    VideoPlayer(player: player)
-                        .ignoresSafeArea()
-                        .onTapGesture { toggleControls() }
-
-                    if showControls {
-                        customControls
-                            .transition(.opacity)
-                    }
-                #endif
+                // Use AVPlayerViewController on all platforms:
+                // - Correctly renders HDR / Dolby Vision colour
+                // - Provides built-in transport controls + dismiss button
+                // - Supports Picture-in-Picture and AirPlay out of the box
+                SystemPlayerView(player: player, onDismiss: { dismiss() })
+                    .ignoresSafeArea()
             } else if playerVM.isLoading {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -268,25 +260,62 @@ public struct VideoPlayerView: View {
     #endif
 }
 
-// MARK: - tvOS AVPlayerViewController
+// MARK: - System AVPlayerViewController (iOS, iPadOS, tvOS, macOS)
+// Using AVPlayerViewController on all platforms ensures:
+// - Correct HDR / Dolby Vision tone-mapping via VideoToolbox
+// - Native transport bar with working dismiss / done button
+// - Picture-in-Picture and AirPlay support
 
-#if os(tvOS)
-    import UIKit
+#if os(macOS)
+    import AppKit
 
-    struct TVOSPlayerView: UIViewControllerRepresentable {
+    struct SystemPlayerView: NSViewControllerRepresentable {
         let player: AVPlayer
-        let item: MediaItem
-        let playerVM: PlayerViewModel
+        let onDismiss: () -> Void
 
-        func makeUIViewController(context _: Context) -> AVPlayerViewController {
+        func makeNSViewController(context _: Context) -> AVPlayerViewController {
             let vc = AVPlayerViewController()
             vc.player = player
             vc.allowsPictureInPicturePlayback = true
             return vc
         }
 
+        func updateNSViewController(_ vc: AVPlayerViewController, context _: Context) {
+            vc.player = player
+        }
+    }
+#else
+    import UIKit
+
+    struct SystemPlayerView: UIViewControllerRepresentable {
+        let player: AVPlayer
+        let onDismiss: () -> Void
+
+        func makeUIViewController(context: Context) -> AVPlayerViewController {
+            let vc = AVPlayerViewController()
+            vc.player = player
+            vc.allowsPictureInPicturePlayback = true
+            vc.showsPlaybackControls = true
+            // Coordinator handles the Done button dismiss
+            vc.delegate = context.coordinator
+            return vc
+        }
+
         func updateUIViewController(_ vc: AVPlayerViewController, context _: Context) {
             vc.player = player
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(onDismiss: onDismiss)
+        }
+
+        final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+            let onDismiss: () -> Void
+            init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
+
+            func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
+                onDismiss()
+            }
         }
     }
 #endif
