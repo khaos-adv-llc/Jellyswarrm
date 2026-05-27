@@ -279,17 +279,20 @@ public struct RequestedSeason: Codable, Sendable, Equatable {
     public let status: SeerrMediaStatus?
 }
 
-public struct SeerrUser: Codable, Sendable, Identifiable, Equatable {
-    public let id: Int
-    public let username: String?
-    public let displayName: String?
-    public let avatar: String?
-    public let email: String?
-    public let permissions: Int?
-    public let userType: Int?
-    public let requestCount: Int?
-    public let createdAt: String?
-    public let updatedAt: String?
+public struct SeerrUser: Codable, Sendable, Equatable {
+    public var id: Int?
+    public var email: String?
+    public var username: String?
+    public var displayName: String?
+    public var jellyfinUsername: String?
+    public var jellyfinUserId: String?
+    public var userType: Int?
+    public var permissions: Int?
+    public var avatar: String?
+    public var requestCount: Int?
+    public var createdAt: String?
+    public var updatedAt: String?
+    public var warnings: [String]?
 }
 
 // MARK: - Request Creation

@@ -45,11 +45,11 @@ public actor SeerrAPIClient {
         let publicURL = baseURL.appendingPathComponent("/api/v1/settings/public")
         var publicRequest = URLRequest(url: publicURL)
         publicRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-        let _: SeerrPublicSettings = try await perform(request: publicRequest)
+        let _: SeerrPublicSettings = try await performLogging(request: publicRequest, label: "settings/public")
 
         let meURL = baseURL.appendingPathComponent("/api/v1/auth/me")
         let meRequest = makeRequest(url: meURL, apiKey: apiKey)
-        return try await perform(request: meRequest)
+        return try await performLogging(request: meRequest, label: "auth/me")
     }
 
     /// Authenticate using Jellyfin username + password.
@@ -432,6 +432,31 @@ public actor SeerrAPIClient {
         if let error = NetworkError.from(statusCode: http.statusCode) { throw error }
         do { return try decoder.decode(T.self, from: data) }
         catch { throw NetworkError.decodingError(error.localizedDescription) }
+    }
+
+    // DEBUG — verbose variant used by testConnection. Logs raw body before decode and
+    // throws a descriptive error if the HTTP status is not 200, instead of a generic
+    // "parse error" when the body is e.g. an HTML login page or error JSON.
+    private func performLogging<T: Decodable>(request: URLRequest, label: String) async throws -> T {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            print("[SeerrDebug] \(label) — no HTTPURLResponse")
+            throw NetworkError.networkUnavailable
+        }
+        if let raw = String(data: data, encoding: .utf8) {
+            print("[SeerrDebug] \(label) HTTP \(http.statusCode) raw response: \(raw)")
+        } else {
+            print("[SeerrDebug] \(label) HTTP \(http.statusCode) (non-utf8, \(data.count) bytes)")
+        }
+        guard http.statusCode == 200 else {
+            if let mapped = NetworkError.from(statusCode: http.statusCode) { throw mapped }
+            throw NetworkError.serverError(http.statusCode)
+        }
+        do { return try decoder.decode(T.self, from: data) }
+        catch {
+            print("[SeerrDebug] \(label) decode failed: \(error)")
+            throw NetworkError.decodingError("\(label): \(error.localizedDescription)")
+        }
     }
 
     private func rawPerform(request: URLRequest) async throws -> Data {
