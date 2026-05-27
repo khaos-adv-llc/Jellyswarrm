@@ -491,12 +491,13 @@ public actor JellyfinAPIClient {
             // Tell Jellyfin we can play these containers natively.
             // Video codec constraints are handled by CodecProfiles below.
             "DirectPlayProfiles": [
-                // Video
-                ["Container": "mp4,m4v",    "Type": "Video"],
-                ["Container": "mov",         "Type": "Video"],
-                ["Container": "mkv",         "Type": "Video"],  // H.264/H.265 + AAC/AC3
-                ["Container": "ts",          "Type": "Video"],
-                ["Container": "m2ts,mts",    "Type": "Video"],
+                // Video — MP4/MOV/TS are natively streamable by AVPlayer.
+                // MKV is intentionally excluded: AVPlayer cannot stream MKV directly.
+                // MKV files are handled by direct-stream (remux to MP4, no re-encode).
+                ["Container": "mp4,m4v", "Type": "Video"],
+                ["Container": "mov",     "Type": "Video"],
+                ["Container": "ts",      "Type": "Video"],
+                ["Container": "m2ts",    "Type": "Video"],
                 // Audio
                 ["Container": "mp3",  "Type": "Audio"],
                 ["Container": "aac",  "Type": "Audio"],

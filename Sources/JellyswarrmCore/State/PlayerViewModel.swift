@@ -223,7 +223,10 @@ public final class PlayerViewModel {
         audioIndex: Int?,
         subtitleIndex: Int?
     ) -> URL? {
-        let container = source.container ?? "mkv"
+        // Always request MP4 container — AVPlayer handles HEVC/DV/HDR10 inside MP4
+        // natively on iPhone 12+ via VideoToolbox. MKV is not a streamable container.
+        // Jellyfin remuxes on the fly with no re-encode (fast, low CPU).
+        let container = "mp4"
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
