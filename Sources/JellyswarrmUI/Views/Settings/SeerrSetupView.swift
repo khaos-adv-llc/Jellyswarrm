@@ -12,8 +12,11 @@ public struct SeerrSetupView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var serverURL = ""
-    @State private var apiKey = ""
     @State private var displayName = ""
+    @State private var authMode: SeerrAuthMode = .apiKey
+    @State private var apiKey = ""
+    @State private var username = ""
+    @State private var password = ""
     @State private var isTesting = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
@@ -48,19 +51,20 @@ public struct SeerrSetupView: View {
                     TextField("Display Name (optional)", text: $displayName)
                 }
 
-                Section {
-                    TextField("API Key", text: $apiKey)
-                        .autocorrectionDisabled()
-                    #if !os(tvOS)
-                        .textInputAutocapitalization(.never)
+                Section("Sign In Method") {
+                    Picker("Authentication", selection: $authMode) {
+                        ForEach(SeerrAuthMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    #if os(tvOS)
+                        .pickerStyle(.automatic)
+                    #else
+                        .pickerStyle(.segmented)
                     #endif
-                        .textContentType(.password)
-                } header: {
-                    Text("API Key")
-                } footer: {
-                    Text("Find your API key in Jellyseerr → Settings → General → API Key")
-                        .font(.caption)
                 }
+
+                authFieldsSection
 
                 if let error = errorMessage {
                     Section {
@@ -93,7 +97,7 @@ public struct SeerrSetupView: View {
                             Spacer()
                         }
                     }
-                    .disabled(serverURL.isEmpty || apiKey.isEmpty || isTesting)
+                    .disabled(!canConnect || isTesting)
                 }
             }
             .navigationTitle("Add Jellyseerr")
@@ -108,6 +112,65 @@ public struct SeerrSetupView: View {
         }
     }
 
+    @ViewBuilder
+    private var authFieldsSection: some View {
+        switch authMode {
+        case .apiKey:
+            Section {
+                TextField("API Key", text: $apiKey)
+                    .autocorrectionDisabled()
+                #if !os(tvOS)
+                    .textInputAutocapitalization(.never)
+                #endif
+                    .textContentType(.password)
+            } header: {
+                Text("API Key")
+            } footer: {
+                Text("Find your API key in Jellyseerr → Settings → General → API Key")
+                    .font(.caption)
+            }
+        case .jellyfinCredentials:
+            Section {
+                TextField("Jellyfin Username", text: $username)
+                    .autocorrectionDisabled()
+                #if !os(tvOS)
+                    .textInputAutocapitalization(.never)
+                #endif
+                SecureField("Jellyfin Password", text: $password)
+                    .textContentType(.password)
+            } header: {
+                Text("Jellyfin Credentials")
+            } footer: {
+                Text("Sign in to Jellyseerr using your Jellyfin username and password. Future tvOS profiles will reuse their own Jellyfin credentials automatically.")
+                    .font(.caption)
+            }
+        case .localAccount:
+            Section {
+                TextField("Email", text: $username)
+                    .autocorrectionDisabled()
+                #if !os(tvOS)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                #endif
+                SecureField("Password", text: $password)
+                    .textContentType(.password)
+            } header: {
+                Text("Local Jellyseerr Account")
+            } footer: {
+                Text("Sign in with a local Jellyseerr account (email + password) independent from Jellyfin.")
+                    .font(.caption)
+            }
+        }
+    }
+
+    private var canConnect: Bool {
+        guard !serverURL.isEmpty else { return false }
+        switch authMode {
+        case .apiKey: return !apiKey.isEmpty
+        case .jellyfinCredentials, .localAccount: return !username.isEmpty && !password.isEmpty
+        }
+    }
+
     private func testAndSave() async {
         guard let url = URL.normalizeJellyfinURL(serverURL) else {
             errorMessage = "Invalid server URL."
@@ -119,14 +182,40 @@ public struct SeerrSetupView: View {
         successMessage = nil
 
         do {
-            let user = try await seerrAPI.testConnection(baseURL: url, apiKey: apiKey)
             let server = SeerrServer(
                 name: displayName.isEmpty ? (url.host ?? "Jellyseerr") : displayName,
                 baseURL: url
             )
-            try appState.addSeerrServer(server, apiKey: apiKey)
-            let who = user.displayName ?? user.username ?? user.email ?? "Connected"
-            successMessage = "Signed in to Jellyseerr as \(who)"
+
+            switch authMode {
+            case .apiKey:
+                let user = try await seerrAPI.testConnection(baseURL: url, apiKey: apiKey)
+                try appState.addSeerrServer(server, apiKey: apiKey)
+                let who = user.displayName ?? user.username ?? user.email ?? "Connected"
+                successMessage = "Signed in to Jellyseerr as \(who)"
+
+            case .jellyfinCredentials:
+                let cookie = try await seerrAPI.authenticateWithJellyfin(
+                    baseURL: url,
+                    username: username,
+                    password: password
+                )
+                try appState.addSeerrServer(server, sessionCookie: cookie, authMode: .jellyfinCredentials)
+                let user = try await seerrAPI.verifySession(baseURL: url, sessionCookie: cookie)
+                let who = user.displayName ?? user.username ?? user.email ?? username
+                successMessage = "Signed in to Jellyseerr as \(who)"
+
+            case .localAccount:
+                let cookie = try await seerrAPI.authenticateWithLocalAccount(
+                    baseURL: url,
+                    email: username,
+                    password: password
+                )
+                try appState.addSeerrServer(server, sessionCookie: cookie, authMode: .localAccount)
+                let user = try await seerrAPI.verifySession(baseURL: url, sessionCookie: cookie)
+                let who = user.displayName ?? user.username ?? user.email ?? username
+                successMessage = "Signed in to Jellyseerr as \(who)"
+            }
 
             try? await Task.sleep(nanoseconds: 800_000_000)
             dismiss()

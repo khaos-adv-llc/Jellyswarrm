@@ -161,9 +161,24 @@ public final class AppState {
 
     /// Add a Seerr server. Config + API key → shared Keychain. Sessions → per-user.
     public func addSeerrServer(_ server: SeerrServer, apiKey: String) throws {
-        try KeychainManager.saveSeerrConfig(server)
-        try KeychainManager.saveSeerrApiKey(apiKey, for: server.id)
+        var srv = server
+        srv.authMode = .apiKey
+        try KeychainManager.saveSeerrConfig(srv)
+        try KeychainManager.saveSeerrApiKey(apiKey, for: srv.id)
+        registerSeerrServer(srv)
+    }
 
+    /// Add a Seerr server that authenticates via session cookie (Jellyfin or local account).
+    /// Config → shared Keychain. Session cookie → per-user Keychain.
+    public func addSeerrServer(_ server: SeerrServer, sessionCookie: String, authMode: SeerrAuthMode) throws {
+        var srv = server
+        srv.authMode = authMode
+        try KeychainManager.saveSeerrConfig(srv)
+        try KeychainManager.saveSeerrSession(sessionCookie, for: srv.id)
+        registerSeerrServer(srv)
+    }
+
+    private func registerSeerrServer(_ server: SeerrServer) {
         var ids = sharedDefaults.stringArray(forKey: "shared_seerr_ids") ?? []
         if !ids.contains(server.id) {
             ids.append(server.id)
