@@ -7,14 +7,16 @@ import JellyswarrmCore
 import SwiftUI
 
 public struct SeerrDetailView: View {
-    public init() {}
+    var movie: SeerrMovieResult?
+    var tv: SeerrTvResult?
+
+    public init(movie: SeerrMovieResult? = nil, tv: SeerrTvResult? = nil) {
+        self.movie = movie
+        self.tv = tv
+    }
 
     @Environment(DiscoverViewModel.self) private var discoverVM
     @Environment(\.dismiss) private var dismiss
-
-    // One of these is provided
-    var movie: SeerrMovieResult?
-    var tv: SeerrTvResult?
 
     @State private var showRequestForm = false
 
