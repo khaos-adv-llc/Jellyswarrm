@@ -141,4 +141,20 @@ public final class LibraryViewModel {
         guard tag != nil else { return nil }
         return api.imageURL(server: server, itemId: item.id, imageType: type, tag: tag, maxWidth: maxWidth)
     }
+
+    /// Poster URL for a card. For episodes, prefers the parent series' primary art so that
+    /// "Continue Watching" / "Next Up" rows show the show banner instead of the episode still.
+    /// Falls back to the series backdrop, then to the episode's own image.
+    public func posterImageURL(for item: MediaItem, maxWidth: Int = 400) -> URL? {
+        guard let server = appState.currentServer else {
+            return imageURL(for: item, type: .primary, maxWidth: maxWidth)
+        }
+        if item.type == .episode, let seriesId = item.seriesId {
+            if let tag = item.seriesPrimaryImageTag {
+                return api.imageURL(server: server, itemId: seriesId, imageType: .primary, tag: tag, maxWidth: maxWidth)
+            }
+            return api.imageURL(server: server, itemId: seriesId, imageType: .backdrop, tag: nil, maxWidth: maxWidth)
+        }
+        return imageURL(for: item, type: .primary, maxWidth: maxWidth)
+    }
 }

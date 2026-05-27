@@ -88,7 +88,7 @@ public struct HomeView: View {
                         NavigationLink(value: item) {
                             MediaCardView(
                                 item: item,
-                                imageURL: libraryVM.imageURL(for: item, type: .primary, maxWidth: Int(cardWidth * 2)),
+                                imageURL: libraryVM.posterImageURL(for: item, maxWidth: Int(cardWidth * 2)),
                                 cardWidth: cardWidth
                             )
                         }

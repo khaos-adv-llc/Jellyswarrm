@@ -21,6 +21,7 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let parentId: String?
     public let seriesId: String?
     public let seriesName: String?
+    public let seriesPrimaryImageTag: String?
     public let seasonId: String?
     public let seasonName: String?
     public let indexNumber: Int? // episode number
@@ -57,6 +58,7 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         case parentId = "ParentId"
         case seriesId = "SeriesId"
         case seriesName = "SeriesName"
+        case seriesPrimaryImageTag = "SeriesPrimaryImageTag"
         case seasonId = "SeasonId"
         case seasonName = "SeasonName"
         case indexNumber = "IndexNumber"
