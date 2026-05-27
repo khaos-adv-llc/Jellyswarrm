@@ -74,16 +74,16 @@ public final class PlayerViewModel {
                 ?? source
             selectedSource = resolvedSource
 
-            print("[Player] source id=\(resolvedSource.id) container=\(resolvedSource.container ?? \"nil\")")
-            print("[Player] directStreamUrl=\(resolvedSource.directStreamUrl ?? \"nil\")")
-            print("[Player] transcodingUrl=\(resolvedSource.transcodingUrl ?? \"nil\")")
+            print("[Player] source: \(resolvedSource.id) container=\(resolvedSource.container ?? "-")")
+            print("[Player] directStreamUrl: \(resolvedSource.directStreamUrl ?? "-")")
+            print("[Player] transcodingUrl: \(resolvedSource.transcodingUrl ?? "-")")
 
             if resolvedSource.supportsDirectPlay, let directPath = resolvedSource.directStreamUrl {
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
-                print("[Player] Using direct play: \(playbackURL?.absoluteString ?? \"nil\")")
+                print("[Player] Using direct play: \(playbackURL?.absoluteString ?? "-")")
             } else if let transPath = resolvedSource.transcodingUrl {
                 playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
-                print("[Player] Using transcode: \(playbackURL?.absoluteString ?? \"nil\")")
+                print("[Player] Using transcode: \(playbackURL?.absoluteString ?? "-")")
             } else {
                 print("[Player] ERROR: still no stream URLs after second call")
                 throw NetworkError.emptyResponse
