@@ -2,8 +2,6 @@
 --indent 4
 --indentcase false
 --trimwhitespace always
---insertlines enabled
---removelines enabled
 --allman false
 --wraparguments before-first
 --wrapparameters before-first
@@ -19,7 +17,6 @@
 --enable elseOnSameLine
 --enable emptyBraces
 --enable leadingDelimiters
---enable numberLiterals
 --enable redundantBreak
 --enable redundantGet
 --enable redundantNilInit
