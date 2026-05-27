@@ -302,12 +302,110 @@ public struct RequestCreate: Codable, Sendable {
     public let mediaId: Int
     public let seasons: [Int]? // for TV: season numbers; nil = all
     public let is4k: Bool
+    public let serverId: Int?
+    public let profileId: Int?
+    public let rootFolder: String?
+    public let languageProfileId: Int?
+    public let tags: [Int]?
 
-    public init(mediaType: String, mediaId: Int, seasons: [Int]? = nil, is4k: Bool = false) {
+    public init(
+        mediaType: String,
+        mediaId: Int,
+        seasons: [Int]? = nil,
+        is4k: Bool = false,
+        serverId: Int? = nil,
+        profileId: Int? = nil,
+        rootFolder: String? = nil,
+        languageProfileId: Int? = nil,
+        tags: [Int]? = nil
+    ) {
         self.mediaType = mediaType
         self.mediaId = mediaId
         self.seasons = seasons
         self.is4k = is4k
+        self.serverId = serverId
+        self.profileId = profileId
+        self.rootFolder = rootFolder
+        self.languageProfileId = languageProfileId
+        self.tags = tags
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mediaType, mediaId, seasons, is4k, serverId, profileId, rootFolder, languageProfileId, tags
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(mediaType, forKey: .mediaType)
+        try c.encode(mediaId, forKey: .mediaId)
+        try c.encodeIfPresent(seasons, forKey: .seasons)
+        try c.encode(is4k, forKey: .is4k)
+        try c.encodeIfPresent(serverId, forKey: .serverId)
+        try c.encodeIfPresent(profileId, forKey: .profileId)
+        try c.encodeIfPresent(rootFolder, forKey: .rootFolder)
+        try c.encodeIfPresent(languageProfileId, forKey: .languageProfileId)
+        try c.encodeIfPresent(tags, forKey: .tags)
+    }
+}
+
+// MARK: - Service (Radarr/Sonarr) Configuration
+
+public struct SeerrServiceServer: Codable, Sendable, Identifiable {
+    public var id: Int?
+    public var name: String?
+    public var isDefault: Bool?
+    public var is4k: Bool?
+
+    public init(id: Int? = nil, name: String? = nil, isDefault: Bool? = nil, is4k: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.isDefault = isDefault
+        self.is4k = is4k
+    }
+}
+
+public struct SeerrServiceProfile: Codable, Sendable, Identifiable {
+    public var id: Int?
+    public var name: String?
+
+    public init(id: Int? = nil, name: String? = nil) {
+        self.id = id
+        self.name = name
+    }
+}
+
+public struct SeerrServiceRootFolder: Codable, Sendable {
+    public var path: String?
+
+    public init(path: String? = nil) {
+        self.path = path
+    }
+}
+
+public struct SeerrServiceDetail: Codable, Sendable {
+    public var profiles: [SeerrServiceProfile]?
+    public var rootFolders: [SeerrServiceRootFolder]?
+
+    public init(profiles: [SeerrServiceProfile]? = nil, rootFolders: [SeerrServiceRootFolder]? = nil) {
+        self.profiles = profiles
+        self.rootFolders = rootFolders
+    }
+}
+
+// MARK: - Permissions
+
+public enum SeerrPermission: Int, Sendable {
+    case admin = 2
+    case request = 32
+    case request4k = 1024
+    case request4kMovie = 2048
+    case request4kTv = 4096
+    case requestAdvanced = 8192
+
+    public static func has(_ permission: SeerrPermission, in userPermissions: Int?) -> Bool {
+        guard let p = userPermissions else { return false }
+        if (p & SeerrPermission.admin.rawValue) != 0 { return true }
+        return (p & permission.rawValue) != 0
     }
 }
 

@@ -47,6 +47,10 @@ public final class DiscoverViewModel {
     public var pendingRequestIds: Set<Int> = []
     public var successfulRequestIds: Set<Int> = []
 
+    // Current Seerr user (for permission checks) + public settings (4K toggles)
+    public var currentSeerrUser: SeerrUser?
+    public var publicSettings: SeerrPublicSettings?
+
     private let appState: AppState
     private let seerrAPI = SeerrAPIClient.shared
 
@@ -104,6 +108,12 @@ public final class DiscoverViewModel {
 
             movieGenres = mGenres
             tvGenres = tGenres
+
+            // Best-effort fetch of current user + public settings for request options
+            async let userTask = seerrAPI.getCurrentUser(baseURL: server.baseURL, credential: cred)
+            async let settingsTask = seerrAPI.getPublicSettings(baseURL: server.baseURL)
+            currentSeerrUser = try? await userTask
+            publicSettings = try? await settingsTask
 
         } catch let e as NetworkError {
             error = e
@@ -196,7 +206,13 @@ public final class DiscoverViewModel {
 
     // MARK: - Requesting Media
 
-    public func requestMovie(movieId: Int) async throws {
+    public func requestMovie(
+        movieId: Int,
+        is4k: Bool = false,
+        serverId: Int? = nil,
+        profileId: Int? = nil,
+        rootFolder: String? = nil
+    ) async throws {
         guard let server = appState.seerrServer,
               let cred = credential
         else {
@@ -207,7 +223,14 @@ public final class DiscoverViewModel {
             _ = try await seerrAPI.createRequest(
                 baseURL: server.baseURL,
                 credential: cred,
-                request: RequestCreate(mediaType: "movie", mediaId: movieId)
+                request: RequestCreate(
+                    mediaType: "movie",
+                    mediaId: movieId,
+                    is4k: is4k,
+                    serverId: serverId,
+                    profileId: profileId,
+                    rootFolder: rootFolder
+                )
             )
             successfulRequestIds.insert(movieId)
         } catch {
@@ -217,7 +240,14 @@ public final class DiscoverViewModel {
         pendingRequestIds.remove(movieId)
     }
 
-    public func requestTV(tvId: Int, seasons: [Int]? = nil) async throws {
+    public func requestTV(
+        tvId: Int,
+        seasons: [Int]? = nil,
+        is4k: Bool = false,
+        serverId: Int? = nil,
+        profileId: Int? = nil,
+        rootFolder: String? = nil
+    ) async throws {
         guard let server = appState.seerrServer,
               let cred = credential
         else {
@@ -228,7 +258,15 @@ public final class DiscoverViewModel {
             _ = try await seerrAPI.createRequest(
                 baseURL: server.baseURL,
                 credential: cred,
-                request: RequestCreate(mediaType: "tv", mediaId: tvId, seasons: seasons)
+                request: RequestCreate(
+                    mediaType: "tv",
+                    mediaId: tvId,
+                    seasons: seasons,
+                    is4k: is4k,
+                    serverId: serverId,
+                    profileId: profileId,
+                    rootFolder: rootFolder
+                )
             )
             successfulRequestIds.insert(tvId)
         } catch {
@@ -236,6 +274,36 @@ public final class DiscoverViewModel {
             throw error
         }
         pendingRequestIds.remove(tvId)
+    }
+
+    // MARK: - Service Configuration (for quality options)
+
+    public func fetchRadarrServers() async -> [SeerrServiceServer] {
+        guard let server = appState.seerrServer, let cred = credential else { return [] }
+        return (try? await seerrAPI.getRadarrServers(baseURL: server.baseURL, credential: cred)) ?? []
+    }
+
+    public func fetchRadarrProfiles(serverId: Int) async -> SeerrServiceDetail? {
+        guard let server = appState.seerrServer, let cred = credential else { return nil }
+        return try? await seerrAPI.getRadarrProfiles(
+            baseURL: server.baseURL,
+            serverId: serverId,
+            credential: cred
+        )
+    }
+
+    public func fetchSonarrServers() async -> [SeerrServiceServer] {
+        guard let server = appState.seerrServer, let cred = credential else { return [] }
+        return (try? await seerrAPI.getSonarrServers(baseURL: server.baseURL, credential: cred)) ?? []
+    }
+
+    public func fetchSonarrProfiles(serverId: Int) async -> SeerrServiceDetail? {
+        guard let server = appState.seerrServer, let cred = credential else { return nil }
+        return try? await seerrAPI.getSonarrProfiles(
+            baseURL: server.baseURL,
+            serverId: serverId,
+            credential: cred
+        )
     }
 
     // MARK: - Recommendations

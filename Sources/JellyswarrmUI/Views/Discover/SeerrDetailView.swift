@@ -312,97 +312,136 @@ public struct RequestFormView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
-    // For TV: mock seasons 1-5 (real app would fetch from SeerrAPIClient)
+    // Quality options state
+    @State private var isLoadingOptions = false
+    @State private var serviceServerId: Int?
+    @State private var profiles: [SeerrServiceProfile] = []
+    @State private var rootFolders: [SeerrServiceRootFolder] = []
+    @State private var selectedProfileId: Int?
+    @State private var selectedRootFolder: String?
+    @State private var request4k = false
+
     private let availableSeasons = Array(1 ... 5)
+
+    private var userPermissions: Int? { discoverVM.currentSeerrUser?.permissions }
+
+    private var canRequestAdvanced: Bool {
+        SeerrPermission.has(.requestAdvanced, in: userPermissions)
+    }
+
+    private var canRequest4k: Bool {
+        if SeerrPermission.has(.request4k, in: userPermissions) { return true }
+        return isTV
+            ? SeerrPermission.has(.request4kTv, in: userPermissions)
+            : SeerrPermission.has(.request4kMovie, in: userPermissions)
+    }
+
+    private var is4kEnabledOnServer: Bool {
+        let settings = discoverVM.publicSettings
+        return isTV ? (settings?.series4kEnabled ?? false) : (settings?.movie4kEnabled ?? false)
+    }
+
+    private var show4kToggle: Bool { canRequest4k && is4kEnabledOnServer }
 
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                // Poster + title
-                HStack(spacing: 16) {
-                    AsyncImage(url: posterURL) { phase in
-                        if case let .success(img) = phase {
-                            img.resizable()
-                                .aspectRatio(2 / 3, contentMode: .fill)
-                                .frame(width: 80, height: 120)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Poster + title
+                    HStack(spacing: 16) {
+                        AsyncImage(url: posterURL) { phase in
+                            if case let .success(img) = phase {
+                                img.resizable()
+                                    .aspectRatio(2 / 3, contentMode: .fill)
+                                    .frame(width: 80, height: 120)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
                         }
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(title)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                        Text(isTV ? "TV Series Request" : "Movie Request")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding()
-
-                if isTV {
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Request all seasons", isOn: $requestAllSeasons)
-                            .padding(.horizontal)
-
-                        if !requestAllSeasons {
-                            Text("Select seasons to request:")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(title)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                            Text(isTV ? "TV Series Request" : "Movie Request")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+
+                    if isLoadingOptions {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Loading quality options…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    qualityOptionsSection
+
+                    if isTV {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Toggle("Request all seasons", isOn: $requestAllSeasons)
                                 .padding(.horizontal)
 
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 70))], spacing: 10) {
-                                ForEach(availableSeasons, id: \.self) { season in
-                                    Toggle("S\(season)", isOn: Binding(
-                                        get: { selectedSeasons.contains(season) },
-                                        set: { checked in
-                                            if checked { selectedSeasons.insert(season) }
-                                            else { selectedSeasons.remove(season) }
-                                        }
-                                    ))
-                                    .toggleStyle(.button)
+                            if !requestAllSeasons {
+                                Text("Select seasons to request:")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 70))], spacing: 10) {
+                                    ForEach(availableSeasons, id: \.self) { season in
+                                        Toggle("S\(season)", isOn: Binding(
+                                            get: { selectedSeasons.contains(season) },
+                                            set: { checked in
+                                                if checked { selectedSeasons.insert(season) }
+                                                else { selectedSeasons.remove(season) }
+                                            }
+                                        ))
+                                        .toggleStyle(.button)
+                                    }
                                 }
+                                .padding(.horizontal)
                             }
+                        }
+                    }
+
+                    if let error = errorMessage {
+                        Label(error, systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .font(.callout)
                             .padding(.horizontal)
-                        }
                     }
-                }
 
-                if let error = errorMessage {
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .foregroundStyle(.red)
-                        .font(.callout)
-                        .padding(.horizontal)
-                }
-
-                Spacer()
-
-                // Submit button
-                Button {
-                    Task { await submit() }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if isSubmitting {
-                            ProgressView().controlSize(.small).tint(.white)
-                            Text("Submitting...")
-                        } else {
-                            Image(systemName: "paperplane.fill")
-                            Text("Submit Request")
-                                .fontWeight(.semibold)
+                    // Submit button
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isSubmitting {
+                                ProgressView().controlSize(.small).tint(.white)
+                                Text("Submitting...")
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                                Text("Submit Request")
+                                    .fontWeight(.semibold)
+                            }
+                            Spacer()
                         }
-                        Spacer()
+                        .padding(.vertical, 16)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding(.vertical, 16)
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .buttonStyle(.plain)
+                    .disabled(isSubmitting)
+                    .padding()
                 }
-                .buttonStyle(.plain)
-                .disabled(isSubmitting)
-                .padding()
             }
             .navigationTitle("Request")
             #if !os(tvOS)
@@ -413,18 +452,102 @@ public struct RequestFormView: View {
                     }
                 }
             #endif
+                .task { await loadQualityOptions() }
         }
+    }
+
+    @ViewBuilder
+    private var qualityOptionsSection: some View {
+        if canRequestAdvanced, !profiles.isEmpty || !rootFolders.isEmpty || show4kToggle {
+            Divider()
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Quality Options")
+                    .font(.headline)
+
+                if !profiles.isEmpty {
+                    Picker("Quality Profile", selection: $selectedProfileId) {
+                        ForEach(profiles) { profile in
+                            Text(profile.name ?? "Profile \(profile.id ?? 0)")
+                                .tag(profile.id as Int?)
+                        }
+                    }
+                }
+
+                if !rootFolders.isEmpty {
+                    Picker("Root Folder", selection: $selectedRootFolder) {
+                        ForEach(rootFolders, id: \.path) { folder in
+                            Text(folder.path ?? "—")
+                                .tag(folder.path as String?)
+                        }
+                    }
+                }
+
+                if show4kToggle {
+                    Toggle("Request in 4K", isOn: $request4k)
+                }
+            }
+            .padding(.horizontal)
+        } else if show4kToggle {
+            // 4K-only users still get the toggle even without advanced perms
+            Divider()
+            Toggle("Request in 4K", isOn: $request4k)
+                .padding(.horizontal)
+        }
+    }
+
+    private func loadQualityOptions() async {
+        guard canRequestAdvanced else { return }
+        isLoadingOptions = true
+        defer { isLoadingOptions = false }
+
+        let servers = isTV
+            ? await discoverVM.fetchSonarrServers()
+            : await discoverVM.fetchRadarrServers()
+
+        // Prefer the default non-4K server; fall back to first available
+        let defaultServer = servers.first(where: { ($0.isDefault ?? false) && !($0.is4k ?? false) })
+            ?? servers.first(where: { $0.isDefault ?? false })
+            ?? servers.first
+
+        guard let chosen = defaultServer, let id = chosen.id else { return }
+        serviceServerId = id
+
+        let detail = isTV
+            ? await discoverVM.fetchSonarrProfiles(serverId: id)
+            : await discoverVM.fetchRadarrProfiles(serverId: id)
+
+        profiles = detail?.profiles ?? []
+        rootFolders = detail?.rootFolders ?? []
+        selectedProfileId = profiles.first?.id
+        selectedRootFolder = rootFolders.first?.path
     }
 
     private func submit() async {
         isSubmitting = true
         errorMessage = nil
         do {
+            let profileId = canRequestAdvanced ? selectedProfileId : nil
+            let rootFolder = canRequestAdvanced ? selectedRootFolder : nil
+            let serverId = canRequestAdvanced ? serviceServerId : nil
+            let is4k = show4kToggle && request4k
             if isTV {
                 let seasons = requestAllSeasons ? nil : Array(selectedSeasons).sorted()
-                try await discoverVM.requestTV(tvId: mediaId, seasons: seasons)
+                try await discoverVM.requestTV(
+                    tvId: mediaId,
+                    seasons: seasons,
+                    is4k: is4k,
+                    serverId: serverId,
+                    profileId: profileId,
+                    rootFolder: rootFolder
+                )
             } else {
-                try await discoverVM.requestMovie(movieId: mediaId)
+                try await discoverVM.requestMovie(
+                    movieId: mediaId,
+                    is4k: is4k,
+                    serverId: serverId,
+                    profileId: profileId,
+                    rootFolder: rootFolder
+                )
             }
             dismiss()
         } catch let e as NetworkError {

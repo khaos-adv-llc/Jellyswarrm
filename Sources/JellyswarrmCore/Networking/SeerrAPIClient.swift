@@ -392,6 +392,58 @@ public actor SeerrAPIClient {
         try await getTVGenres(baseURL: baseURL, credential: .apiKey(apiKey))
     }
 
+    // MARK: - Service (Radarr/Sonarr) Configuration
+
+    public func getRadarrServers(
+        baseURL: URL,
+        credential: SeerrCredential
+    ) async throws -> [SeerrServiceServer] {
+        let url = baseURL.appendingPathComponent("/api/v1/service/radarr")
+        return try await perform(request: makeRequest(url: url, credential: credential))
+    }
+
+    public func getRadarrProfiles(
+        baseURL: URL,
+        serverId: Int,
+        credential: SeerrCredential
+    ) async throws -> SeerrServiceDetail {
+        let url = baseURL.appendingPathComponent("/api/v1/service/radarr/\(serverId)")
+        return try await perform(request: makeRequest(url: url, credential: credential))
+    }
+
+    public func getSonarrServers(
+        baseURL: URL,
+        credential: SeerrCredential
+    ) async throws -> [SeerrServiceServer] {
+        let url = baseURL.appendingPathComponent("/api/v1/service/sonarr")
+        return try await perform(request: makeRequest(url: url, credential: credential))
+    }
+
+    public func getSonarrProfiles(
+        baseURL: URL,
+        serverId: Int,
+        credential: SeerrCredential
+    ) async throws -> SeerrServiceDetail {
+        let url = baseURL.appendingPathComponent("/api/v1/service/sonarr/\(serverId)")
+        return try await perform(request: makeRequest(url: url, credential: credential))
+    }
+
+    // MARK: - Current User / Public Settings
+
+    /// Get the currently authenticated user (for permission checks).
+    public func getCurrentUser(baseURL: URL, credential: SeerrCredential) async throws -> SeerrUser {
+        let url = baseURL.appendingPathComponent("/api/v1/auth/me")
+        return try await perform(request: makeRequest(url: url, credential: credential))
+    }
+
+    /// Fetch the server's public settings (4K toggles, etc.).
+    public func getPublicSettings(baseURL: URL) async throws -> SeerrPublicSettings {
+        let url = baseURL.appendingPathComponent("/api/v1/settings/public")
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return try await perform(request: request)
+    }
+
     // MARK: - Discover Sliders
 
     public func getDiscoverSliders(baseURL: URL, credential: SeerrCredential) async throws -> [DiscoverSlider] {
