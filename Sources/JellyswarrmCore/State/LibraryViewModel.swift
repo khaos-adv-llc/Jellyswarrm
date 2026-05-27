@@ -106,6 +106,24 @@ public final class LibraryViewModel {
         return try await api.getItemDetail(server: server, token: token, itemId: itemId)
     }
 
+    public func getSeasons(for seriesId: String) async throws -> [MediaItem] {
+        guard let server = appState.currentServer,
+              let token = appState.tokenForCurrentServer()
+        else {
+            throw NetworkError.unauthorized
+        }
+        return try await api.getSeasons(server: server, token: token, seriesId: seriesId)
+    }
+
+    public func getEpisodes(for seriesId: String, seasonId: String? = nil) async throws -> [MediaItem] {
+        guard let server = appState.currentServer,
+              let token = appState.tokenForCurrentServer()
+        else {
+            throw NetworkError.unauthorized
+        }
+        return try await api.getEpisodes(server: server, token: token, seriesId: seriesId, seasonId: seasonId)
+    }
+
     public func toggleFavorite(_ item: MediaItem) async throws {
         // Optimistic UI update would go here — full implementation in real app
         _ = try await getDetail(for: item.id)

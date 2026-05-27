@@ -161,6 +161,53 @@ public actor JellyfinAPIClient {
         return response.items
     }
 
+    public func getSeasons(
+        server: JellyfinServer,
+        token: String,
+        seriesId: String
+    ) async throws -> [MediaItem] {
+        var components = URLComponents(
+            url: server.baseURL.appendingPathComponent("/Shows/\(seriesId)/Seasons"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "UserId", value: server.userId),
+            URLQueryItem(name: "Fields", value: "Overview,ImageTags,BackdropImageTags"),
+            URLQueryItem(name: "EnableImages", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImageTypes", value: "Primary,Backdrop,Thumb"),
+        ]
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        let request = makeRequest(url: url, server: server, token: token)
+        let response: ItemsResponse<MediaItem> = try await perform(request: request)
+        return response.items
+    }
+
+    public func getEpisodes(
+        server: JellyfinServer,
+        token: String,
+        seriesId: String,
+        seasonId: String? = nil
+    ) async throws -> [MediaItem] {
+        var components = URLComponents(
+            url: server.baseURL.appendingPathComponent("/Shows/\(seriesId)/Episodes"),
+            resolvingAgainstBaseURL: false
+        )!
+        var queryItems = [
+            URLQueryItem(name: "UserId", value: server.userId),
+            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,ImageTags,BackdropImageTags"),
+            URLQueryItem(name: "EnableImages", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+            URLQueryItem(name: "EnableImageTypes", value: "Primary,Backdrop,Thumb"),
+        ]
+        if let seasonId { queryItems.append(URLQueryItem(name: "SeasonId", value: seasonId)) }
+        components.queryItems = queryItems
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        let request = makeRequest(url: url, server: server, token: token)
+        let response: ItemsResponse<MediaItem> = try await perform(request: request)
+        return response.items
+    }
+
     public func getItemDetail(
         server: JellyfinServer,
         token: String,

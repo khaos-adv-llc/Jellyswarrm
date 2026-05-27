@@ -11,9 +11,6 @@ public struct HomeView: View {
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
-    @State private var selectedItem: MediaItem?
-    @State private var showPlayer = false
-
     public var body: some View {
         NavigationStack {
             ScrollView {
@@ -23,11 +20,13 @@ public struct HomeView: View {
                     } else {
                         // Hero featured item
                         if let featured = libraryVM.continueWatching.first ?? libraryVM.nextUp.first {
-                            HeroHeaderView(
-                                item: featured,
-                                imageURL: libraryVM.imageURL(for: featured, type: .backdrop, maxWidth: 1280)
-                            )
-                            .onTapGesture { selectedItem = featured; showPlayer = true }
+                            NavigationLink(value: featured) {
+                                HeroHeaderView(
+                                    item: featured,
+                                    imageURL: libraryVM.imageURL(for: featured, type: .backdrop, maxWidth: 1280)
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
 
                         // Continue Watching
@@ -66,11 +65,6 @@ public struct HomeView: View {
             .navigationTitle("Home")
             .refreshable {
                 await libraryVM.refresh()
-            }
-            .fullScreenCover(isPresented: $showPlayer) {
-                if let item = selectedItem {
-                    VideoPlayerView(item: item)
-                }
             }
             .navigationDestination(for: MediaItem.self) { item in
                 MediaDetailView(item: item)
