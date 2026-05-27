@@ -37,11 +37,9 @@ jobs:
         run: swift --version
 
       - name: Resolve dependencies
-        working-directory: project
         run: swift package resolve
 
       - name: Build (${{ matrix.platform.name }})
-        working-directory: project
         run: |
           xcodebuild build \
             -scheme Jellyswarrm \
@@ -50,7 +48,6 @@ jobs:
             | xcpretty
 
       - name: Test (${{ matrix.platform.name }})
-        working-directory: project
         run: |
           xcodebuild test \
             -scheme Jellyswarrm \
@@ -70,7 +67,6 @@ jobs:
         run: brew install swiftformat
 
       - name: Run SwiftFormat (lint only)
-        working-directory: project
         run: swiftformat --lint Sources/ Tests/
 
   # ── License Header Check ────────────────────────────────────────────────────
@@ -89,7 +85,7 @@ jobs:
               echo "Missing GPL header: $file"
               MISSING=$((MISSING + 1))
             fi
-          done < <(find project/Sources -name "*.swift" -print0)
+          done < <(find Sources -name "*.swift" -print0)
           if [ "$MISSING" -gt 0 ]; then
             echo ""
             echo "$MISSING file(s) are missing GPL license headers."

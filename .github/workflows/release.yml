@@ -26,7 +26,6 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Validate build compiles
-        working-directory: project
         run: |
           xcodebuild build \
             -scheme Jellyswarrm \
@@ -49,7 +48,7 @@ jobs:
 
       - name: Create source archive
         run: |
-          zip -r jellyswarrm-${{ steps.version.outputs.VERSION }}-source.zip project/ \
+          zip -r jellyswarrm-${{ steps.version.outputs.VERSION }}-source.zip . \
             -x "*.DS_Store" -x "__MACOSX/*" -x "*.git/*" -x "*/.build/*"
 
       - name: Create GitHub Release
