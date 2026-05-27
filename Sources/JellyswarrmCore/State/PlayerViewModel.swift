@@ -57,11 +57,15 @@ public final class PlayerViewModel {
             audioStreamIndex = source.defaultAudioStreamIndex
             subtitleStreamIndex = source.defaultSubtitleStreamIndex
 
-            // Prefer direct play, fall back to transcode
-            if source.supportsDirectPlay, let directURL = source.directStreamUrl {
-                playbackURL = server.baseURL.appendingPathComponent(directURL)
-            } else if let transURL = source.transcodingUrl {
-                playbackURL = server.baseURL.appendingPathComponent(transURL)
+            // Prefer direct play, fall back to transcode.
+            // AVPlayer cannot send auth headers, so we append the token as a query param.
+            // directStreamUrl / transcodingUrl are already full paths (e.g. "/Videos/…"),
+            // so we resolve them against baseURL rather than appending as path components.
+            if source.supportsDirectPlay, let directPath = source.directStreamUrl {
+                playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
+            } else if let transPath = source.transcodingUrl {
+                // Transcode URL already contains all needed query params from the server
+                playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
             }
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
@@ -160,5 +164,38 @@ public final class PlayerViewModel {
 
     public var subtitleStreams: [MediaStream] {
         selectedSource?.mediaStreams?.filter { $0.type == .subtitle } ?? []
+    }
+
+    // MARK: - URL Helpers
+
+    /// Resolves a Jellyfin path (e.g. "/Videos/id/stream.mp4?params")
+    /// against the server base URL and appends the auth token so AVPlayer
+    /// can fetch it without custom headers.
+    private func resolvePlaybackURL(path: String, server: JellyfinServer, token: String) -> URL? {
+        // If path is already an absolute URL string, use it directly
+        if path.hasPrefix("http") {
+            guard var components = URLComponents(string: path) else { return nil }
+            var items = components.queryItems ?? []
+            if !items.contains(where: { $0.name == "api_key" }) {
+                items.append(URLQueryItem(name: "api_key", value: token))
+            }
+            components.queryItems = items
+            return components.url
+        }
+
+        // Relative path — resolve against base URL
+        let base = server.baseURL.absoluteString.hasSuffix("/")
+            ? server.baseURL.absoluteString
+            : server.baseURL.absoluteString + "/"
+        let cleanPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        let fullString = base + cleanPath
+
+        guard var components = URLComponents(string: fullString) else { return nil }
+        var items = components.queryItems ?? []
+        if !items.contains(where: { $0.name == "api_key" }) {
+            items.append(URLQueryItem(name: "api_key", value: token))
+        }
+        components.queryItems = items
+        return components.url
     }
 }
