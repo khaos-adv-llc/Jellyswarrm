@@ -7,10 +7,10 @@ import PackageDescription
 let package = Package(
     name: "Jellyswarrm",
     platforms: [
-        .iOS(.v17),
-        .tvOS(.v17),
-        .macOS(.v14),
-        .visionOS(.v1)
+        .iOS(.v26),
+        .tvOS(.v26),
+        .macOS(.v26),
+        .visionOS(.v1),
     ],
     products: [
         .library(name: "JellyswarrmCore", targets: ["JellyswarrmCore"]),
