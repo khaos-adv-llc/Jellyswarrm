@@ -5,7 +5,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct ServerSetupView: View {
+public struct ServerSetupView: View {
+    public init() {}
+
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
@@ -19,7 +21,7 @@ struct ServerSetupView: View {
 
     private let api = JellyfinAPIClient.shared
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             Form {
                 Section("Server") {

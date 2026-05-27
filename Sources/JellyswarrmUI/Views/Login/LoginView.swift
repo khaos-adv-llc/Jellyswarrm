@@ -5,11 +5,13 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct LoginView: View {
+public struct LoginView: View {
+    public init() {}
+
     @Environment(AppState.self) private var appState
     @State private var showServerSetup = false
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             // Background gradient
             LinearGradient(

@@ -7,7 +7,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct DiscoverView: View {
+public struct DiscoverView: View {
+    public init() {}
+
     @Environment(DiscoverViewModel.self) private var discoverVM
     @Environment(AppState.self) private var appState
 
@@ -21,7 +23,7 @@ struct DiscoverView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             Group {
                 if !appState.hasSeerrConfigured {

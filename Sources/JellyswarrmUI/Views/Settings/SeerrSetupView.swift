@@ -5,7 +5,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct SeerrSetupView: View {
+public struct SeerrSetupView: View {
+    public init() {}
+
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
@@ -18,7 +20,7 @@ struct SeerrSetupView: View {
 
     private let seerrAPI = SeerrAPIClient.shared
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             Form {
                 Section {

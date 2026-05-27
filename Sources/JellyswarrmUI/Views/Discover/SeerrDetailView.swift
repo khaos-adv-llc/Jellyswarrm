@@ -6,7 +6,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct SeerrDetailView: View {
+public struct SeerrDetailView: View {
+    public init() {}
+
     @Environment(DiscoverViewModel.self) private var discoverVM
     @Environment(\.dismiss) private var dismiss
 
@@ -34,7 +36,7 @@ struct SeerrDetailView: View {
 
     private var isTV: Bool { tv != nil }
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -218,11 +220,18 @@ struct SeerrDetailView: View {
 
 // MARK: - Request Form
 
-struct RequestFormView: View {
+public struct RequestFormView: View {
     let mediaId: Int
     let title: String
     let isTV: Bool
     let posterURL: URL?
+
+    public init(mediaId: Int, title: String, isTV: Bool, posterURL: URL?) {
+        self.mediaId = mediaId
+        self.title = title
+        self.isTV = isTV
+        self.posterURL = posterURL
+    }
 
     @Environment(DiscoverViewModel.self) private var discoverVM
     @Environment(\.dismiss) private var dismiss
@@ -235,7 +244,7 @@ struct RequestFormView: View {
     // For TV: mock seasons 1-5 (real app would fetch from SeerrAPIClient)
     private let availableSeasons = Array(1 ... 5)
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 // Poster + title

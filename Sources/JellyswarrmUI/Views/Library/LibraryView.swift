@@ -5,7 +5,9 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct LibraryView: View {
+public struct LibraryView: View {
+    public init() {}
+
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
@@ -13,7 +15,7 @@ struct LibraryView: View {
         GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16),
     ]
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             Group {
                 if libraryVM.isLoading, libraryVM.sections.isEmpty {
@@ -81,8 +83,12 @@ struct LibraryView: View {
 
 // MARK: - Library Section Grid
 
-struct LibrarySectionView: View {
+public struct LibrarySectionView: View {
     let section: LibrarySection
+
+    public init(section: LibrarySection) {
+        self.section = section
+    }
     @Environment(LibraryViewModel.self) private var libraryVM
 
     @State private var items: [MediaItem] = []
@@ -95,7 +101,7 @@ struct LibrarySectionView: View {
     private let pageSize = 50
     private let columns = [GridItem(.adaptive(minimum: 130, maximum: 180), spacing: 12)]
 
-    var body: some View {
+    public var body: some View {
         ScrollView {
             if isLoading, items.isEmpty {
                 ProgressView().padding(.top, 80)

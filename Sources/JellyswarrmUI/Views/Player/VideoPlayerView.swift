@@ -6,7 +6,7 @@ import AVKit
 import JellyswarrmCore
 import SwiftUI
 
-struct VideoPlayerView: View {
+public struct VideoPlayerView: View {
     let item: MediaItem
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -16,12 +16,12 @@ struct VideoPlayerView: View {
     @State private var showControls = true
     @State private var hideControlsTask: Task<Void, Never>?
 
-    init(item: MediaItem) {
+    public init(item: MediaItem) {
         self.item = item
         _playerVM = State(initialValue: PlayerViewModel(appState: AppState()))
     }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 

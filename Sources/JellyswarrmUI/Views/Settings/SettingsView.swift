@@ -5,13 +5,15 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct SettingsView: View {
+public struct SettingsView: View {
+    public init() {}
+
     @Environment(AppState.self) private var appState
     @State private var showAddServer = false
     @State private var showAddSeerr = false
     @State private var showSignOutConfirm = false
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             Form {
                 // MARK: Jellyfin Servers
@@ -147,12 +149,14 @@ struct SettingsView: View {
     }
 }
 
-struct PlaybackSettingsView: View {
+public struct PlaybackSettingsView: View {
+    public init() {}
+
     @AppStorage("preferDirectPlay") private var preferDirectPlay = true
     @AppStorage("maxBitrateMbps") private var maxBitrateMbps = 140
     @AppStorage("defaultSubtitleMode") private var defaultSubtitleMode = "off"
 
-    var body: some View {
+    public var body: some View {
         Form {
             Section("Streaming") {
                 Toggle("Prefer Direct Play", isOn: $preferDirectPlay)

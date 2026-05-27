@@ -5,14 +5,16 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct HomeView: View {
+public struct HomeView: View {
+    public init() {}
+
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
     @State private var selectedItem: MediaItem?
     @State private var showPlayer = false
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
@@ -149,11 +151,16 @@ struct HomeView: View {
 
 // MARK: - Hero Header
 
-struct HeroHeaderView: View {
+public struct HeroHeaderView: View {
     let item: MediaItem
     let imageURL: URL?
 
-    var body: some View {
+    public init(item: MediaItem, imageURL: URL?) {
+        self.item = item
+        self.imageURL = imageURL
+    }
+
+    public var body: some View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: imageURL) { phase in
                 switch phase {

@@ -6,13 +6,13 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct MainTabView: View {
+public struct MainTabView: View {
     @Environment(AppState.self) private var appState
     @State private var libraryVM: LibraryViewModel
     @State private var discoverVM: DiscoverViewModel
     @State private var searchVM: SearchViewModel
 
-    init() {
+    public init() {
         // ViewModels initialized in body with environment — see .task below
         // Using temp placeholders here; real init happens in .task via onAppear
         _libraryVM = State(initialValue: LibraryViewModel(appState: AppState()))
@@ -20,7 +20,7 @@ struct MainTabView: View {
         _searchVM = State(initialValue: SearchViewModel(appState: AppState()))
     }
 
-    var body: some View {
+    public var body: some View {
         #if os(macOS)
             macOSLayout
         #elseif os(tvOS)

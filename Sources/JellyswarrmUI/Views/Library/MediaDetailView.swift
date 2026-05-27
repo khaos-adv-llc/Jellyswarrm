@@ -5,8 +5,12 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct MediaDetailView: View {
+public struct MediaDetailView: View {
     let item: MediaItem
+
+    public init(item: MediaItem) {
+        self.item = item
+    }
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
@@ -16,7 +20,7 @@ struct MediaDetailView: View {
 
     var displayItem: MediaItem { detail ?? item }
 
-    var body: some View {
+    public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 // Backdrop

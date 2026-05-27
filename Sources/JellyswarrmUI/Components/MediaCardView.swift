@@ -6,17 +6,24 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct MediaCardView: View {
+public struct MediaCardView: View {
     let item: MediaItem
     let imageURL: URL?
     var showTitle: Bool = true
     var cardWidth: CGFloat = 150
 
+    public init(item: MediaItem, imageURL: URL?, showTitle: Bool = true, cardWidth: CGFloat = 150) {
+        self.item = item
+        self.imageURL = imageURL
+        self.showTitle = showTitle
+        self.cardWidth = cardWidth
+    }
+
     @State private var isFocused: Bool = false
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             posterImage
             if showTitle {
@@ -123,18 +130,26 @@ struct MediaCardView: View {
 
 // MARK: - Seerr Card
 
-struct SeerrMediaCardView: View {
+public struct SeerrMediaCardView: View {
     let title: String
     let year: String?
     let posterURL: URL?
     let status: SeerrMediaStatus
     var cardWidth: CGFloat = 150
 
+    public init(title: String, year: String?, posterURL: URL?, status: SeerrMediaStatus, cardWidth: CGFloat = 150) {
+        self.title = title
+        self.year = year
+        self.posterURL = posterURL
+        self.status = status
+        self.cardWidth = cardWidth
+    }
+
     @State private var isFocused: Bool = false
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topTrailing) {
                 AsyncImage(url: posterURL) { phase in

@@ -6,14 +6,16 @@
 import JellyswarrmCore
 import SwiftUI
 
-struct SearchView: View {
+public struct SearchView: View {
+    public init() {}
+
     @Environment(SearchViewModel.self) private var searchVM
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
     @State private var selectedSeerrResult: SeerrSearchResult?
 
-    var body: some View {
+    public var body: some View {
         NavigationStack {
             @Bindable var searchVM = searchVM
             List {
