@@ -22,6 +22,11 @@ public actor SeerrAPIClient {
     public init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
+        // We manage the session cookie manually via Keychain — opt out of automatic
+        // cookie handling so HTTPCookieStorage doesn't strip Set-Cookie from responses.
+        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = false
+        config.httpCookieStorage = nil
         self.session = URLSession(configuration: config)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
@@ -48,7 +53,7 @@ public actor SeerrAPIClient {
     }
 
     /// Authenticate using Jellyfin username + password.
-    /// Returns the raw Set-Cookie string to store in the per-user Keychain.
+    /// Returns the session cookie value (`connect.sid=<value>`) to store in the per-user Keychain.
     public func authenticateWithJellyfin(
         baseURL: URL,
         username: String,
@@ -66,22 +71,11 @@ public actor SeerrAPIClient {
         guard let http = response as? HTTPURLResponse else { throw NetworkError.networkUnavailable }
         if let error = NetworkError.from(statusCode: http.statusCode) { throw error }
 
-        // Extract session cookie from response headers
-        let headers = http.allHeaderFields as? [String: String] ?? [:]
-        let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
-        guard let sessionCookie = cookies.first(where: { $0.name == "connect.sid" || $0.name.hasPrefix("session") })?
-            .value
-            ?? cookies.first?.value,
-            !sessionCookie.isEmpty
-        else {
-            throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
-        }
-        // Return the full Set-Cookie header value so we can replay it exactly
-        return headers["Set-Cookie"] ?? "\(cookies.first?.name ?? "session")=\(sessionCookie)"
+        return try extractSessionCookie(from: http, url: url)
     }
 
     /// Authenticate using a local Seerr account (email + password).
-    /// Returns the raw Set-Cookie string to store in the per-user Keychain.
+    /// Returns the session cookie value (`connect.sid=<value>`) to store in the per-user Keychain.
     public func authenticateWithLocalAccount(
         baseURL: URL,
         email: String,
@@ -99,12 +93,23 @@ public actor SeerrAPIClient {
         guard let http = response as? HTTPURLResponse else { throw NetworkError.networkUnavailable }
         if let error = NetworkError.from(statusCode: http.statusCode) { throw error }
 
-        let headers = http.allHeaderFields as? [String: String] ?? [:]
-        let rawCookie = headers["Set-Cookie"] ?? ""
-        if rawCookie.isEmpty {
-            throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
+        return try extractSessionCookie(from: http, url: url)
+    }
+
+    /// Parse the Set-Cookie response header(s) and return `connect.sid=<value>` suitable
+    /// for use as a Cookie request header. Falls back to the first session-like cookie if
+    /// the server uses a different name.
+    private func extractSessionCookie(from http: HTTPURLResponse, url: URL) throws -> String {
+        let setCookie = http.value(forHTTPHeaderField: "Set-Cookie") ?? ""
+        let headers: [String: String] = setCookie.isEmpty ? [:] : ["Set-Cookie": setCookie]
+        let parsed = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+        let candidate = parsed.first(where: { $0.name == "connect.sid" })
+            ?? parsed.first(where: { $0.name.lowercased().contains("session") })
+            ?? parsed.first
+        if let cookie = candidate, !cookie.value.isEmpty {
+            return "\(cookie.name)=\(cookie.value)"
         }
-        return rawCookie
+        throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
     }
 
     // MARK: - SeerrServer convenience overloads
