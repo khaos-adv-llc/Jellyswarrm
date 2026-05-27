@@ -383,7 +383,7 @@ public actor JellyfinAPIClient {
 
     // MARK: - Image URL Builder
 
-    public func imageURL(
+    public nonisolated func imageURL(
         server: JellyfinServer,
         itemId: String,
         imageType: ImageType,
