@@ -74,6 +74,7 @@ public struct HomeView: View {
             }
             .navigationDestination(for: MediaItem.self) { item in
                 MediaDetailView(item: item)
+                    .environment(libraryVM)
             }
         }
     }

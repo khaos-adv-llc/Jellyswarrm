@@ -108,7 +108,7 @@ public struct LibrarySectionView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(items) { item in
-                        NavigationLink(destination: MediaDetailView(item: item)) {
+                        NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
                             MediaCardView(
                                 item: item,
                                 imageURL: libraryVM.imageURL(for: item, type: .primary, maxWidth: 300),
