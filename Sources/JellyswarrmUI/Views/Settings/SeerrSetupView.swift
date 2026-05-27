@@ -119,13 +119,14 @@ public struct SeerrSetupView: View {
         successMessage = nil
 
         do {
-            let status = try await seerrAPI.testConnection(baseURL: url, apiKey: apiKey)
+            let user = try await seerrAPI.testConnection(baseURL: url, apiKey: apiKey)
             let server = SeerrServer(
                 name: displayName.isEmpty ? (url.host ?? "Jellyseerr") : displayName,
                 baseURL: url
             )
             try appState.addSeerrServer(server, apiKey: apiKey)
-            successMessage = "Connected to Jellyseerr v\(status.version)"
+            let who = user.displayName ?? user.username ?? user.email ?? "Connected"
+            successMessage = "Signed in to Jellyseerr as \(who)"
 
             try? await Task.sleep(nanoseconds: 800_000_000)
             dismiss()

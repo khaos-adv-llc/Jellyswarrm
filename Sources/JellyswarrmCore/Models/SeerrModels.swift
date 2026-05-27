@@ -49,12 +49,12 @@ public enum SeerrRequestStatus: Int, Codable, Sendable {
 
 public struct SeerrMediaInfo: Codable, Sendable, Equatable {
     public let id: Int
-    public let mediaType: String
+    public let mediaType: String?
     public let tmdbId: Int?
     public let tvdbId: Int?
     public let imdbId: String?
-    public let status: SeerrMediaStatus
-    public let status4k: SeerrMediaStatus
+    public let status: SeerrMediaStatus?
+    public let status4k: SeerrMediaStatus?
     public let jellyfinMediaId: String?
     public let jellyfinMediaId4k: String?
     public let mediaUrl: String?
@@ -255,15 +255,15 @@ public struct SeerrPersonResult: Codable, Sendable, Identifiable, Equatable {
 
 public struct MediaRequest: Codable, Sendable, Identifiable, Equatable {
     public let id: Int
-    public let status: SeerrRequestStatus
-    public let type: String
+    public let status: SeerrRequestStatus?
+    public let type: String?
     public let requestedBy: SeerrUser?
     public let modifiedBy: SeerrUser?
-    public let createdAt: String
-    public let updatedAt: String
+    public let createdAt: String?
+    public let updatedAt: String?
     public let media: SeerrMediaInfo?
     public let seasons: [RequestedSeason]?
-    public let is4k: Bool
+    public let is4k: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, status, type, requestedBy, modifiedBy
@@ -281,11 +281,15 @@ public struct RequestedSeason: Codable, Sendable, Equatable {
 
 public struct SeerrUser: Codable, Sendable, Identifiable, Equatable {
     public let id: Int
-    public let displayName: String
+    public let username: String?
+    public let displayName: String?
     public let avatar: String?
     public let email: String?
     public let permissions: Int?
+    public let userType: Int?
     public let requestCount: Int?
+    public let createdAt: String?
+    public let updatedAt: String?
 }
 
 // MARK: - Request Creation
@@ -364,8 +368,42 @@ public struct DiscoverSlider: Codable, Sendable, Identifiable, Equatable {
 // MARK: - Status
 
 public struct SeerrStatus: Codable, Sendable {
-    public let version: String
+    public let version: String?
     public let commitTag: String?
     public let updateAvailable: Bool?
+    public let commitsBehind: Int?
+    public let restartRequired: Bool?
     public let runtimeEnv: String?
+}
+
+// MARK: - Public Settings (no auth required)
+
+public struct SeerrPublicSettings: Codable, Sendable {
+    public let jellyfinHost: String?
+    public let jellyfinExternalHost: String?
+    public let jellyfinServerName: String?
+    public let jellyfinForgotPasswordUrl: String?
+    public let initialized: Bool?
+    public let applicationTitle: String?
+    public let applicationUrl: String?
+    public let hideAvailable: Bool?
+    public let hideBlocklisted: Bool?
+    public let localLogin: Bool?
+    public let mediaServerLogin: Bool?
+    public let movie4kEnabled: Bool?
+    public let series4kEnabled: Bool?
+    public let discoverRegion: String?
+    public let streamingRegion: String?
+    public let originalLanguage: String?
+    public let mediaServerType: Int?
+    public let partialRequestsEnabled: Bool?
+    public let enableSpecialEpisodes: Bool?
+    public let cacheImages: Bool?
+    public let vapidPublic: String?
+    public let enablePushRegistration: Bool?
+    public let locale: String?
+    public let emailEnabled: Bool?
+    public let newPlexLogin: Bool?
+    public let youtubeUrl: String?
+    public let plexClientIdentifier: String?
 }

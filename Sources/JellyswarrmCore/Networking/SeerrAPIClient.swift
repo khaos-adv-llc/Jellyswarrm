@@ -29,11 +29,22 @@ public actor SeerrAPIClient {
 
     // MARK: - Authentication
 
-    /// Test server reachability — no auth required.
-    public func testConnection(baseURL: URL, apiKey: String) async throws -> SeerrStatus {
-        let url = baseURL.appendingPathComponent("/api/v1/status")
-        let request = makeRequest(url: url, apiKey: apiKey)
-        return try await perform(request: request)
+    /// Test server reachability and validate the API key.
+    ///
+    /// 1. GET /api/v1/settings/public (no auth) — verifies the URL points at a Seerr instance.
+    /// 2. GET /api/v1/auth/me with X-Api-Key — validates that the API key works.
+    ///
+    /// Returns the authenticated user so the UI can confirm which account the key belongs to.
+    @discardableResult
+    public func testConnection(baseURL: URL, apiKey: String) async throws -> SeerrUser {
+        let publicURL = baseURL.appendingPathComponent("/api/v1/settings/public")
+        var publicRequest = URLRequest(url: publicURL)
+        publicRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        let _: SeerrPublicSettings = try await perform(request: publicRequest)
+
+        let meURL = baseURL.appendingPathComponent("/api/v1/auth/me")
+        let meRequest = makeRequest(url: meURL, apiKey: apiKey)
+        return try await perform(request: meRequest)
     }
 
     /// Authenticate using Jellyfin username + password.

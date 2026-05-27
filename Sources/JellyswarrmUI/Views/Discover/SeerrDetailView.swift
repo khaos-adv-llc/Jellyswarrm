@@ -77,8 +77,8 @@ public struct SeerrDetailView: View {
                             if let year { badge(year, icon: "calendar") }
                             if let rating { badge(String(format: "%.1f ★", rating), icon: nil).foregroundStyle(.yellow)
                             }
-                            if let info = mediaInfo {
-                                availabilityBadge(info.status)
+                            if let status = mediaInfo?.status {
+                                availabilityBadge(status)
                             }
                         }
                         .font(.caption)

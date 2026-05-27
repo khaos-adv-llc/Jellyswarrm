@@ -177,11 +177,11 @@ public struct SearchView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if let info = result.mediaInfo {
-                    Text(info.status.displayName)
+                if let status = result.mediaInfo?.status {
+                    Text(status.displayName)
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundStyle(info.status.isOnServer ? .green : .orange)
+                        .foregroundStyle(status.isOnServer ? .green : .orange)
                 }
             }
 

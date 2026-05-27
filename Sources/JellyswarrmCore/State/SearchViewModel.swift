@@ -101,13 +101,13 @@ public final class SearchViewModel {
     /// Seerr results filtered to items NOT already on the Jellyfin server
     public var discoverableResults: [SeerrSearchResult] {
         seerrResults.filter { result in
-            guard let info = result.mediaInfo else { return true }
-            return !info.status.isOnServer
+            guard let status = result.mediaInfo?.status else { return true }
+            return !status.isOnServer
         }
     }
 
     /// Seerr results that ARE on the server (useful for cross-referencing)
     public var onServerSeerrResults: [SeerrSearchResult] {
-        seerrResults.filter { $0.mediaInfo?.status.isOnServer == true }
+        seerrResults.filter { $0.mediaInfo?.status?.isOnServer == true }
     }
 }
