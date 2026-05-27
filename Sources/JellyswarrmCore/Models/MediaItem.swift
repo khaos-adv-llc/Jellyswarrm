@@ -159,13 +159,15 @@ public struct ItemsResponse<T: Codable & Sendable>: Codable, Sendable {
 public struct AuthResponse: Codable, Sendable {
     public let accessToken: String
     public let serverId: String
-    public let userId: String
     public let user: JellyfinUser
+
+    /// Convenience accessor — Jellyfin returns the user ID inside the User object,
+    /// not as a top-level field.
+    public var userId: String { user.id }
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "AccessToken"
         case serverId = "ServerId"
-        case userId = "Id"
         case user = "User"
     }
 }
