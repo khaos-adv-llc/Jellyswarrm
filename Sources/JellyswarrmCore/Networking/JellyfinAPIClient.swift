@@ -3,6 +3,11 @@
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
+#if os(iOS) || os(tvOS)
+    import UIKit
+#elseif os(macOS)
+    import AppKit
+#endif
 
 /// Thread-safe Jellyfin API client using Swift concurrency
 public actor JellyfinAPIClient {
