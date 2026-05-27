@@ -238,6 +238,36 @@ public final class DiscoverViewModel {
         pendingRequestIds.remove(tvId)
     }
 
+    // MARK: - Recommendations
+
+    public func fetchMovieRecommendations(movieId: Int) async -> [SeerrMovieResult] {
+        guard let server = appState.seerrServer, let cred = credential else { return [] }
+        do {
+            let page = try await seerrAPI.getMovieRecommendations(
+                baseURL: server.baseURL,
+                credential: cred,
+                movieId: movieId
+            )
+            return page.results
+        } catch {
+            return []
+        }
+    }
+
+    public func fetchTVRecommendations(tvId: Int) async -> [SeerrTvResult] {
+        guard let server = appState.seerrServer, let cred = credential else { return [] }
+        do {
+            let page = try await seerrAPI.getTVRecommendations(
+                baseURL: server.baseURL,
+                credential: cred,
+                tvId: tvId
+            )
+            return page.results
+        } catch {
+            return []
+        }
+    }
+
     public func requestStatus(for mediaId: Int) -> RequestButtonState {
         if successfulRequestIds.contains(mediaId) { return .requested }
         if pendingRequestIds.contains(mediaId) { return .requesting }

@@ -19,6 +19,18 @@ public struct SeerrDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showRequestForm = false
+    @State private var movieRecs: [SeerrMovieResult] = []
+    @State private var tvRecs: [SeerrTvResult] = []
+    @State private var isLoadingRecs = true
+    @State private var selectedRec: RecTarget?
+
+    private enum RecTarget: Identifiable {
+        case movie(SeerrMovieResult)
+        case tv(SeerrTvResult)
+        var id: Int {
+            switch self { case let .movie(m): return m.id; case let .tv(t): return t.id }
+        }
+    }
 
     private var title: String { movie?.title ?? tv?.name ?? "" }
 
@@ -93,15 +105,7 @@ public struct SeerrDetailView: View {
                         // Request / Status section
                         requestSection
 
-                        Divider()
-
-                        // Recommendations (placeholder for future loading)
-                        Text("More like this")
-                            .font(.headline)
-
-                        Text("Recommendations load here once detail is fetched.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        recommendationsSection
                     }
                     .padding()
                 }
@@ -123,6 +127,71 @@ public struct SeerrDetailView: View {
                     )
                     .environment(discoverVM)
                 }
+                .sheet(item: $selectedRec) { target in
+                    switch target {
+                    case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)
+                    case let .tv(t): SeerrDetailView(tv: t).environment(discoverVM)
+                    }
+                }
+                .task(id: mediaId) {
+                    isLoadingRecs = true
+                    if isTV {
+                        tvRecs = await discoverVM.fetchTVRecommendations(tvId: mediaId)
+                    } else {
+                        movieRecs = await discoverVM.fetchMovieRecommendations(movieId: mediaId)
+                    }
+                    isLoadingRecs = false
+                }
+        }
+    }
+
+    // MARK: - Recommendations Section
+
+    @ViewBuilder
+    private var recommendationsSection: some View {
+        if isLoadingRecs {
+            Divider()
+            Text("More like this")
+                .font(.headline)
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        } else if isTV, !tvRecs.isEmpty {
+            Divider()
+            Text("More like this")
+                .font(.headline)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(tvRecs) { show in
+                        SeerrMediaCardView(
+                            title: show.name,
+                            year: show.releaseYear,
+                            posterURL: show.fullPosterURL,
+                            status: show.availabilityStatus,
+                            cardWidth: 120
+                        )
+                        .onTapGesture { selectedRec = .tv(show) }
+                    }
+                }
+            }
+        } else if !isTV, !movieRecs.isEmpty {
+            Divider()
+            Text("More like this")
+                .font(.headline)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(movieRecs) { movie in
+                        SeerrMediaCardView(
+                            title: movie.title,
+                            year: movie.releaseYear,
+                            posterURL: movie.fullPosterURL,
+                            status: movie.availabilityStatus,
+                            cardWidth: 120
+                        )
+                        .onTapGesture { selectedRec = .movie(movie) }
+                    }
+                }
+            }
         }
     }
 
