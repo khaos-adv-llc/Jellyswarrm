@@ -5,7 +5,7 @@
 import Foundation
 
 /// A Jellyfin media item — covers movies, series, episodes, seasons, and library folders
-public struct MediaItem: Codable, Sendable, Identifiable, Equatable {
+public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
     public let name: String
     public let sortName: String?
@@ -116,7 +116,7 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable {
 
 // MARK: - Supporting Types
 
-public struct NameId: Codable, Sendable, Identifiable, Equatable {
+public struct NameId: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
     public let name: String
 
@@ -126,7 +126,7 @@ public struct NameId: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-public struct PersonInfo: Codable, Sendable, Identifiable, Equatable {
+public struct PersonInfo: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
     public let name: String
     public let type: String?

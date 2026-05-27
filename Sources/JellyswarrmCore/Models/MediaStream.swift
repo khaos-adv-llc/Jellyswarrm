@@ -4,7 +4,7 @@
 
 import Foundation
 
-public struct MediaStream: Codable, Sendable, Identifiable, Equatable {
+public struct MediaStream: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let index: Int
     public let codec: String?
     public let codecTag: String?
@@ -53,7 +53,7 @@ public struct MediaStream: Codable, Sendable, Identifiable, Equatable {
         case profile = "Profile"
     }
 
-    public enum StreamType: String, Codable, Sendable {
+    public enum StreamType: String, Codable, Sendable, Hashable {
         case audio = "Audio"
         case video = "Video"
         case subtitle = "Subtitle"
@@ -63,7 +63,7 @@ public struct MediaStream: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-public struct PlaybackInfo: Codable, Sendable {
+public struct PlaybackInfo: Codable, Sendable, Hashable {
     public let mediaSources: [MediaSource]
 
     enum CodingKeys: String, CodingKey {
@@ -71,7 +71,7 @@ public struct PlaybackInfo: Codable, Sendable {
     }
 }
 
-public struct MediaSource: Codable, Sendable, Identifiable {
+public struct MediaSource: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public let name: String?
     public let path: String?

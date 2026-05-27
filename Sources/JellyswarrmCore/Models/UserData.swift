@@ -5,7 +5,7 @@
 import Foundation
 
 /// Tracks per-user playback state for a media item
-public struct UserData: Codable, Sendable, Equatable {
+public struct UserData: Codable, Sendable, Equatable, Hashable {
     public let playbackPositionTicks: Int64
     public let playCount: Int
     public let isFavorite: Bool

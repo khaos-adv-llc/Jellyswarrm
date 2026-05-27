@@ -5,7 +5,7 @@
 import Foundation
 
 /// A top-level Jellyfin library (Movies, TV Shows, Music, etc.)
-public struct LibrarySection: Codable, Sendable, Identifiable, Equatable {
+public struct LibrarySection: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let id: String
     public let name: String
     public let collectionType: CollectionType?
@@ -20,7 +20,7 @@ public struct LibrarySection: Codable, Sendable, Identifiable, Equatable {
         case childCount = "ChildCount"
     }
 
-    public enum CollectionType: String, Codable, Sendable {
+    public enum CollectionType: String, Codable, Sendable, Hashable {
         case movies
         case tvshows
         case music

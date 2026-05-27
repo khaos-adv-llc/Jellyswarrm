@@ -5,7 +5,7 @@
 import Foundation
 
 /// Jellyfin media item types
-public enum MediaType: String, Codable, Sendable, CaseIterable {
+public enum MediaType: String, Codable, Sendable, CaseIterable, Hashable {
     case movie = "Movie"
     case series = "Series"
     case episode = "Episode"
@@ -65,7 +65,7 @@ public enum MediaType: String, Codable, Sendable, CaseIterable {
 }
 
 /// Jellyfin image types
-public enum ImageType: String, Codable, Sendable {
+public enum ImageType: String, Codable, Sendable, Hashable {
     case primary = "Primary"
     case backdrop = "Backdrop"
     case thumb = "Thumb"
