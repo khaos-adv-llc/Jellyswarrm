@@ -84,7 +84,7 @@ public actor JellyfinAPIClient {
         sortBy: String = "SortName",
         sortOrder: String = "Ascending",
         filters: [String] = [],
-        fields: [String] = ["Overview", "Genres", "MediaStreams", "People", "Studios"],
+        fields: [String] = ["Overview", "Genres", "MediaStreams", "People", "Studios", "ImageTags", "BackdropImageTags"],
         limit: Int = 50,
         startIndex: Int = 0,
         recursive: Bool = false,
@@ -129,7 +129,7 @@ public actor JellyfinAPIClient {
         )!
         components.queryItems = [
             URLQueryItem(name: "Limit", value: "\(limit)"),
-            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData"),
+            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData,ImageTags,BackdropImageTags"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ]
@@ -151,7 +151,7 @@ public actor JellyfinAPIClient {
         components.queryItems = [
             URLQueryItem(name: "UserId", value: server.userId),
             URLQueryItem(name: "Limit", value: "\(limit)"),
-            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData"),
+            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData,ImageTags,BackdropImageTags"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ]
@@ -171,7 +171,7 @@ public actor JellyfinAPIClient {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "Fields", value: "Overview,Genres,MediaStreams,People,Studios,Taglines,ProviderIds"),
+            URLQueryItem(name: "Fields", value: "Overview,Genres,MediaStreams,People,Studios,Taglines,ProviderIds,ImageTags,BackdropImageTags"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ]
@@ -210,7 +210,7 @@ public actor JellyfinAPIClient {
             URLQueryItem(name: "SearchTerm", value: query),
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "IncludeItemTypes", value: "Movie,Series,Episode"),
-            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData"),
+            URLQueryItem(name: "Fields", value: "Overview,MediaStreams,UserData,ImageTags,BackdropImageTags"),
             URLQueryItem(name: "Limit", value: "\(limit)"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
