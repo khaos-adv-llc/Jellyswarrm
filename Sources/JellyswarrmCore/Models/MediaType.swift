@@ -1,4 +1,5 @@
 // MARK: - MediaType.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -29,36 +30,36 @@ public enum MediaType: String, Codable, Sendable, CaseIterable {
 
     public var isPlayable: Bool {
         switch self {
-        case .movie, .episode, .audio, .trailer: return true
-        default: return false
+        case .movie, .episode, .audio, .trailer: true
+        default: false
         }
     }
 
     public var isContainer: Bool {
         switch self {
         case .series, .season, .collectionFolder, .musicAlbum,
-             .musicArtist, .boxSet, .folder, .playlist: return true
-        default: return false
+             .musicArtist, .boxSet, .folder, .playlist: true
+        default: false
         }
     }
 
     public var displayName: String {
         switch self {
-        case .movie: return "Movie"
-        case .series: return "TV Series"
-        case .episode: return "Episode"
-        case .season: return "Season"
-        case .collectionFolder: return "Library"
-        case .musicAlbum: return "Album"
-        case .musicArtist: return "Artist"
-        case .audio: return "Song"
-        case .book: return "Book"
-        case .photo: return "Photo"
-        case .trailer: return "Trailer"
-        case .boxSet: return "Collection"
-        case .folder: return "Folder"
-        case .playlist: return "Playlist"
-        case .unknown: return "Media"
+        case .movie: "Movie"
+        case .series: "TV Series"
+        case .episode: "Episode"
+        case .season: "Season"
+        case .collectionFolder: "Library"
+        case .musicAlbum: "Album"
+        case .musicArtist: "Artist"
+        case .audio: "Song"
+        case .book: "Book"
+        case .photo: "Photo"
+        case .trailer: "Trailer"
+        case .boxSet: "Collection"
+        case .folder: "Folder"
+        case .playlist: "Playlist"
+        case .unknown: "Media"
         }
     }
 }

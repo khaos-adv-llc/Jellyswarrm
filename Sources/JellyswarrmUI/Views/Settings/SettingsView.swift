@@ -1,8 +1,9 @@
 // MARK: - SettingsView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
@@ -14,6 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 // MARK: Jellyfin Servers
+
                 Section("Jellyfin Servers") {
                     if appState.savedServers.isEmpty {
                         Text("No servers configured")
@@ -57,6 +59,7 @@ struct SettingsView: View {
                 }
 
                 // MARK: Jellyseerr
+
                 Section("Jellyseerr / Overseerr") {
                     if let seerr = appState.seerrServer {
                         HStack {
@@ -89,6 +92,7 @@ struct SettingsView: View {
                 }
 
                 // MARK: Playback
+
                 Section("Playback") {
                     NavigationLink("Playback Quality") {
                         PlaybackSettingsView()
@@ -96,14 +100,19 @@ struct SettingsView: View {
                 }
 
                 // MARK: About
+
                 Section("About") {
-                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
+                    LabeledContent(
+                        "Version",
+                        value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+                    )
                     LabeledContent("License", value: "GPL v3")
                     Link("Source Code", destination: URL(string: "https://github.com/yourusername/jellyswarrm")!)
                     Link("Based on Fladder", destination: URL(string: "https://github.com/DonutWare/Fladder")!)
                 }
 
                 // MARK: Sign Out
+
                 if appState.isAuthenticated {
                     Section {
                         Button(role: .destructive) {
@@ -168,7 +177,7 @@ struct PlaybackSettingsView: View {
         }
         .navigationTitle("Playback")
         #if !os(tvOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
     }
 }

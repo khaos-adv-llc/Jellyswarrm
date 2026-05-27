@@ -1,4 +1,5 @@
 // MARK: - PlayerViewModel.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -7,7 +8,6 @@ import Observation
 @Observable
 @MainActor
 public final class PlayerViewModel {
-
     public var currentItem: MediaItem?
     public var playbackInfo: PlaybackInfo?
     public var selectedSource: MediaSource?
@@ -25,7 +25,7 @@ public final class PlayerViewModel {
 
     // Progress reporting
     private var reportingTask: Task<Void, Never>?
-    private let reportingInterval: TimeInterval = 10  // seconds
+    private let reportingInterval: TimeInterval = 10 // seconds
 
     private let appState: AppState
     private let api = JellyfinAPIClient.shared

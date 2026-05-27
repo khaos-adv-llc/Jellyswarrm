@@ -1,8 +1,9 @@
 // MARK: - HomeView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct HomeView: View {
     @Environment(LibraryViewModel.self) private var libraryVM
@@ -20,8 +21,11 @@ struct HomeView: View {
                     } else {
                         // Hero featured item
                         if let featured = libraryVM.continueWatching.first ?? libraryVM.nextUp.first {
-                            HeroHeaderView(item: featured, imageURL: libraryVM.imageURL(for: featured, type: .backdrop, maxWidth: 1280))
-                                .onTapGesture { selectedItem = featured; showPlayer = true }
+                            HeroHeaderView(
+                                item: featured,
+                                imageURL: libraryVM.imageURL(for: featured, type: .backdrop, maxWidth: 1280)
+                            )
+                            .onTapGesture { selectedItem = featured; showPlayer = true }
                         }
 
                         // Continue Watching
@@ -101,7 +105,7 @@ struct HomeView: View {
 
     private var loadingSkeleton: some View {
         VStack(alignment: .leading, spacing: 28) {
-            ForEach(0..<3, id: \.self) { _ in
+            ForEach(0 ..< 3, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: 12) {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color.gray.opacity(0.2))
@@ -110,7 +114,7 @@ struct HomeView: View {
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
-                            ForEach(0..<6, id: \.self) { _ in
+                            ForEach(0 ..< 6, id: \.self) { _ in
                                 RoundedRectangle(cornerRadius: 12)
                                     .fill(Color.gray.opacity(0.15))
                                     .frame(width: cardWidth, height: cardWidth * 1.5)
@@ -128,17 +132,17 @@ struct HomeView: View {
 
     private var cardWidth: CGFloat {
         #if os(tvOS)
-        return 240
+            return 240
         #else
-        return 130
+            return 130
         #endif
     }
 
     private var horizontalPadding: CGFloat {
         #if os(tvOS)
-        return 60
+            return 60
         #else
-        return 16
+            return 16
         #endif
     }
 }
@@ -153,13 +157,13 @@ struct HeroHeaderView: View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: imageURL) { phase in
                 switch phase {
-                case .success(let image):
+                case let .success(image):
                     image.resizable()
-                        .aspectRatio(16/9, contentMode: .fill)
+                        .aspectRatio(16 / 9, contentMode: .fill)
                 default:
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
-                        .aspectRatio(16/9, contentMode: .fill)
+                        .aspectRatio(16 / 9, contentMode: .fill)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -203,17 +207,17 @@ struct HeroHeaderView: View {
 
     private var heroHeight: CGFloat {
         #if os(tvOS)
-        return 480
+            return 480
         #else
-        return 280
+            return 280
         #endif
     }
 
     private var heroPadding: CGFloat {
         #if os(tvOS)
-        return 60
+            return 60
         #else
-        return 16
+            return 16
         #endif
     }
 }

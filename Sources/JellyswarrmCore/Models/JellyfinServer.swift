@@ -1,4 +1,5 @@
 // MARK: - JellyfinServer.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -17,11 +18,13 @@ public struct JellyfinServer: Sendable, Identifiable, Equatable, Codable {
         "jellyfin_token_\(id)"
     }
 
-    public init(id: String = UUID().uuidString,
-                name: String,
-                baseURL: URL,
-                userId: String,
-                username: String) {
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        baseURL: URL,
+        userId: String,
+        username: String
+    ) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
@@ -46,9 +49,11 @@ public struct SeerrServer: Sendable, Identifiable, Equatable, Codable {
         "seerr_apikey_\(id)"
     }
 
-    public init(id: String = UUID().uuidString,
-                name: String,
-                baseURL: URL) {
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        baseURL: URL
+    ) {
         self.id = id
         self.name = name
         self.baseURL = baseURL

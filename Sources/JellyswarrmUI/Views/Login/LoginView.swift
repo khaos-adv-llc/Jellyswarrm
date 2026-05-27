@@ -1,8 +1,9 @@
 // MARK: - LoginView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct LoginView: View {
     @Environment(AppState.self) private var appState

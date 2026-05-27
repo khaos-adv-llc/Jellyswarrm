@@ -1,4 +1,5 @@
 // MARK: - SeerrModels.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Models derived from seerr-open-api.json
 
@@ -15,11 +16,11 @@ public enum SeerrMediaStatus: Int, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .unknown: return "Unknown"
-        case .pending: return "Pending"
-        case .processing: return "Processing"
-        case .partiallyAvailable: return "Partial"
-        case .available: return "Available"
+        case .unknown: "Unknown"
+        case .pending: "Pending"
+        case .processing: "Processing"
+        case .partiallyAvailable: "Partial"
+        case .available: "Available"
         }
     }
 
@@ -36,10 +37,10 @@ public enum SeerrRequestStatus: Int, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .pending: return "Pending Approval"
-        case .approved: return "Approved"
-        case .declined: return "Declined"
-        case .available: return "Available"
+        case .pending: "Pending Approval"
+        case .approved: "Approved"
+        case .declined: "Declined"
+        case .available: "Available"
         }
     }
 }
@@ -63,8 +64,8 @@ public struct SeerrMediaInfo: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, mediaType, tmdbId, tvdbId, imdbId
         case status, status4k
-        case jellyfinMediaId = "jellyfinMediaId"
-        case jellyfinMediaId4k = "jellyfinMediaId4k"
+        case jellyfinMediaId
+        case jellyfinMediaId4k
         case mediaUrl, mediaUrl4k
         case downloadStatus
     }
@@ -164,41 +165,41 @@ public enum SeerrSearchResult: Codable, Sendable, Identifiable {
 
     public var id: Int {
         switch self {
-        case .movie(let m): return m.id
-        case .tv(let t): return t.id
-        case .person(let p): return p.id
+        case let .movie(m): m.id
+        case let .tv(t): t.id
+        case let .person(p): p.id
         }
     }
 
     public var title: String {
         switch self {
-        case .movie(let m): return m.title
-        case .tv(let t): return t.name
-        case .person(let p): return p.name
+        case let .movie(m): m.title
+        case let .tv(t): t.name
+        case let .person(p): p.name
         }
     }
 
     public var posterPath: String? {
         switch self {
-        case .movie(let m): return m.posterPath
-        case .tv(let t): return t.posterPath
-        case .person(let p): return p.profilePath
+        case let .movie(m): m.posterPath
+        case let .tv(t): t.posterPath
+        case let .person(p): p.profilePath
         }
     }
 
     public var mediaInfo: SeerrMediaInfo? {
         switch self {
-        case .movie(let m): return m.mediaInfo
-        case .tv(let t): return t.mediaInfo
-        case .person: return nil
+        case let .movie(m): m.mediaInfo
+        case let .tv(t): t.mediaInfo
+        case .person: nil
         }
     }
 
     public var mediaType: String {
         switch self {
-        case .movie: return "movie"
-        case .tv: return "tv"
-        case .person: return "person"
+        case .movie: "movie"
+        case .tv: "tv"
+        case .person: "person"
         }
     }
 
@@ -212,23 +213,25 @@ public enum SeerrSearchResult: Codable, Sendable, Identifiable {
         let mediaType = try container.decode(String.self, forKey: .mediaType)
         switch mediaType {
         case "movie":
-            self = .movie(try SeerrMovieResult(from: decoder))
+            self = try .movie(SeerrMovieResult(from: decoder))
         case "tv":
-            self = .tv(try SeerrTvResult(from: decoder))
+            self = try .tv(SeerrTvResult(from: decoder))
         case "person":
-            self = .person(try SeerrPersonResult(from: decoder))
+            self = try .person(SeerrPersonResult(from: decoder))
         default:
-            throw DecodingError.dataCorruptedError(forKey: .mediaType,
+            throw DecodingError.dataCorruptedError(
+                forKey: .mediaType,
                 in: container,
-                debugDescription: "Unknown mediaType: \(mediaType)")
+                debugDescription: "Unknown mediaType: \(mediaType)"
+            )
         }
     }
 
     public func encode(to encoder: Encoder) throws {
         switch self {
-        case .movie(let m): try m.encode(to: encoder)
-        case .tv(let t): try t.encode(to: encoder)
-        case .person(let p): try p.encode(to: encoder)
+        case let .movie(m): try m.encode(to: encoder)
+        case let .tv(t): try t.encode(to: encoder)
+        case let .person(p): try p.encode(to: encoder)
         }
     }
 
@@ -288,9 +291,9 @@ public struct SeerrUser: Codable, Sendable, Identifiable, Equatable {
 // MARK: - Request Creation
 
 public struct RequestCreate: Codable, Sendable {
-    public let mediaType: String  // "movie" or "tv"
+    public let mediaType: String // "movie" or "tv"
     public let mediaId: Int
-    public let seasons: [Int]?    // for TV: season numbers; nil = all
+    public let seasons: [Int]? // for TV: season numbers; nil = all
     public let is4k: Bool
 
     public init(mediaType: String, mediaId: Int, seasons: [Int]? = nil, is4k: Bool = false) {

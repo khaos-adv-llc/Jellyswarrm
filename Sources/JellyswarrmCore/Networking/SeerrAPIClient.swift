@@ -1,4 +1,5 @@
 // MARK: - SeerrAPIClient.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -12,7 +13,6 @@ import Foundation
 /// The client is auth-mode agnostic: callers decide which credential to pass.
 /// AppState resolves the right credential for the current user before calling.
 public actor SeerrAPIClient {
-
     public static let shared = SeerrAPIClient()
 
     private let session: URLSession
@@ -58,9 +58,10 @@ public actor SeerrAPIClient {
         // Extract session cookie from response headers
         let headers = http.allHeaderFields as? [String: String] ?? [:]
         let cookies = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
-        guard let sessionCookie = cookies.first(where: { $0.name == "connect.sid" || $0.name.hasPrefix("session") })?.value
-               ?? cookies.first?.value,
-              !sessionCookie.isEmpty
+        guard let sessionCookie = cookies.first(where: { $0.name == "connect.sid" || $0.name.hasPrefix("session") })?
+            .value
+            ?? cookies.first?.value,
+            !sessionCookie.isEmpty
         else {
             throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
         }
@@ -97,6 +98,7 @@ public actor SeerrAPIClient {
     }
 
     // MARK: - SeerrServer convenience overloads
+
     // These accept a SeerrServer directly and automatically persist the session
     // cookie to the per-user Keychain after a successful authentication.
 
@@ -210,29 +212,63 @@ public actor SeerrAPIClient {
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
 
-    public func discoverTrending(baseURL: URL, apiKey: String, page: Int = 1) async throws -> SeerrPage<SeerrSearchResult> {
+    public func discoverTrending(
+        baseURL: URL,
+        apiKey: String,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrSearchResult> {
         try await discoverTrending(baseURL: baseURL, credential: .apiKey(apiKey), page: page)
     }
 
-    public func discoverMovies(baseURL: URL, apiKey: String, page: Int = 1, genre: Int? = nil, language: String? = nil) async throws -> SeerrPage<SeerrMovieResult> {
-        try await discoverMovies(baseURL: baseURL, credential: .apiKey(apiKey), page: page, genre: genre, language: language)
+    public func discoverMovies(
+        baseURL: URL,
+        apiKey: String,
+        page: Int = 1,
+        genre: Int? = nil,
+        language: String? = nil
+    ) async throws -> SeerrPage<SeerrMovieResult> {
+        try await discoverMovies(
+            baseURL: baseURL,
+            credential: .apiKey(apiKey),
+            page: page,
+            genre: genre,
+            language: language
+        )
     }
 
-    public func discoverMoviesUpcoming(baseURL: URL, apiKey: String, page: Int = 1) async throws -> SeerrPage<SeerrMovieResult> {
+    public func discoverMoviesUpcoming(
+        baseURL: URL,
+        apiKey: String,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrMovieResult> {
         try await discoverMoviesUpcoming(baseURL: baseURL, credential: .apiKey(apiKey), page: page)
     }
 
-    public func discoverTV(baseURL: URL, apiKey: String, page: Int = 1, genre: Int? = nil, network: Int? = nil) async throws -> SeerrPage<SeerrTvResult> {
+    public func discoverTV(
+        baseURL: URL,
+        apiKey: String,
+        page: Int = 1,
+        genre: Int? = nil,
+        network: Int? = nil
+    ) async throws -> SeerrPage<SeerrTvResult> {
         try await discoverTV(baseURL: baseURL, credential: .apiKey(apiKey), page: page, genre: genre, network: network)
     }
 
-    public func discoverTVUpcoming(baseURL: URL, apiKey: String, page: Int = 1) async throws -> SeerrPage<SeerrTvResult> {
+    public func discoverTVUpcoming(
+        baseURL: URL,
+        apiKey: String,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrTvResult> {
         try await discoverTVUpcoming(baseURL: baseURL, credential: .apiKey(apiKey), page: page)
     }
 
     // MARK: - Detail
 
-    public func getMovieDetails(baseURL: URL, credential: SeerrCredential, movieId: Int) async throws -> SeerrMovieResult {
+    public func getMovieDetails(
+        baseURL: URL,
+        credential: SeerrCredential,
+        movieId: Int
+    ) async throws -> SeerrMovieResult {
         let url = baseURL.appendingPathComponent("/api/v1/movie/\(movieId)")
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
@@ -242,30 +278,54 @@ public actor SeerrAPIClient {
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
 
-    public func getMovieRecommendations(baseURL: URL, credential: SeerrCredential, movieId: Int, page: Int = 1) async throws -> SeerrPage<SeerrMovieResult> {
+    public func getMovieRecommendations(
+        baseURL: URL,
+        credential: SeerrCredential,
+        movieId: Int,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrMovieResult> {
         let url = buildURL(base: baseURL, path: "/api/v1/movie/\(movieId)/recommendations", query: ["page": "\(page)"])
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
 
-    public func getTVRecommendations(baseURL: URL, credential: SeerrCredential, tvId: Int, page: Int = 1) async throws -> SeerrPage<SeerrTvResult> {
+    public func getTVRecommendations(
+        baseURL: URL,
+        credential: SeerrCredential,
+        tvId: Int,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrTvResult> {
         let url = buildURL(base: baseURL, path: "/api/v1/tv/\(tvId)/recommendations", query: ["page": "\(page)"])
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
 
     // MARK: - Search
 
-    public func search(baseURL: URL, credential: SeerrCredential, query: String, page: Int = 1) async throws -> SeerrPage<SeerrSearchResult> {
+    public func search(
+        baseURL: URL,
+        credential: SeerrCredential,
+        query: String,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrSearchResult> {
         let url = buildURL(base: baseURL, path: "/api/v1/search", query: ["query": query, "page": "\(page)"])
         return try await perform(request: makeRequest(url: url, credential: credential))
     }
 
-    public func search(baseURL: URL, apiKey: String, query: String, page: Int = 1) async throws -> SeerrPage<SeerrSearchResult> {
+    public func search(
+        baseURL: URL,
+        apiKey: String,
+        query: String,
+        page: Int = 1
+    ) async throws -> SeerrPage<SeerrSearchResult> {
         try await search(baseURL: baseURL, credential: .apiKey(apiKey), query: query, page: page)
     }
 
     // MARK: - Requests
 
-    public func createRequest(baseURL: URL, credential: SeerrCredential, request req: RequestCreate) async throws -> MediaRequest {
+    public func createRequest(
+        baseURL: URL,
+        credential: SeerrCredential,
+        request req: RequestCreate
+    ) async throws -> MediaRequest {
         let url = baseURL.appendingPathComponent("/api/v1/request")
         var request = makeRequest(url: url, credential: credential)
         request.httpMethod = "POST"
@@ -273,7 +333,13 @@ public actor SeerrAPIClient {
         return try await perform(request: request)
     }
 
-    public func getRequests(baseURL: URL, credential: SeerrCredential, filter: String? = nil, sort: String = "added", page: Int = 1) async throws -> SeerrPage<MediaRequest> {
+    public func getRequests(
+        baseURL: URL,
+        credential: SeerrCredential,
+        filter: String? = nil,
+        sort: String = "added",
+        page: Int = 1
+    ) async throws -> SeerrPage<MediaRequest> {
         var params: [String: String] = ["sort": sort, "page": "\(page)"]
         if let f = filter { params["filter"] = f }
         let url = buildURL(base: baseURL, path: "/api/v1/request", query: params)
@@ -290,11 +356,17 @@ public actor SeerrAPIClient {
     // MARK: - Genres
 
     public func getMovieGenres(baseURL: URL, credential: SeerrCredential) async throws -> [SeerrGenre] {
-        try await perform(request: makeRequest(url: baseURL.appendingPathComponent("/api/v1/genres/movie"), credential: credential))
+        try await perform(request: makeRequest(
+            url: baseURL.appendingPathComponent("/api/v1/genres/movie"),
+            credential: credential
+        ))
     }
 
     public func getTVGenres(baseURL: URL, credential: SeerrCredential) async throws -> [SeerrGenre] {
-        try await perform(request: makeRequest(url: baseURL.appendingPathComponent("/api/v1/genres/tv"), credential: credential))
+        try await perform(request: makeRequest(
+            url: baseURL.appendingPathComponent("/api/v1/genres/tv"),
+            credential: credential
+        ))
     }
 
     public func getMovieGenres(baseURL: URL, apiKey: String) async throws -> [SeerrGenre] {
@@ -308,7 +380,10 @@ public actor SeerrAPIClient {
     // MARK: - Discover Sliders
 
     public func getDiscoverSliders(baseURL: URL, credential: SeerrCredential) async throws -> [DiscoverSlider] {
-        try await perform(request: makeRequest(url: baseURL.appendingPathComponent("/api/v1/settings/discover"), credential: credential))
+        try await perform(request: makeRequest(
+            url: baseURL.appendingPathComponent("/api/v1/settings/discover"),
+            credential: credential
+        ))
     }
 
     // MARK: - Private Helpers
@@ -322,9 +397,9 @@ public actor SeerrAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         switch credential {
-        case .apiKey(let key):
+        case let .apiKey(key):
             request.setValue(key, forHTTPHeaderField: "X-Api-Key")
-        case .session(let cookie):
+        case let .session(cookie):
             request.setValue(cookie, forHTTPHeaderField: "Cookie")
         }
         return request
@@ -357,6 +432,6 @@ public actor SeerrAPIClient {
 /// Encapsulates how a request authenticates against Seerr.
 /// Resolved by AppState for the current user before any API call.
 public enum SeerrCredential: Sendable {
-    case apiKey(String)     // X-Api-Key header — shared across all tvOS profiles
-    case session(String)    // Cookie header — per tvOS profile
+    case apiKey(String) // X-Api-Key header — shared across all tvOS profiles
+    case session(String) // Cookie header — per tvOS profile
 }

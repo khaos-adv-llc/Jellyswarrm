@@ -1,10 +1,11 @@
 // MARK: - DiscoverView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Jellyseerr-powered discover section: browse trending, upcoming, by genre.
 // Items show availability status and request buttons directly.
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct DiscoverView: View {
     @Environment(DiscoverViewModel.self) private var discoverVM
@@ -16,7 +17,7 @@ struct DiscoverView: View {
         case movie(SeerrMovieResult)
         case tv(SeerrTvResult)
         var id: Int {
-            switch self { case .movie(let m): return m.id; case .tv(let t): return t.id }
+            switch self { case let .movie(m): return m.id; case let .tv(t): return t.id }
         }
     }
 
@@ -25,7 +26,7 @@ struct DiscoverView: View {
             Group {
                 if !appState.hasSeerrConfigured {
                     noSeerrView
-                } else if discoverVM.isLoading && discoverVM.trendingItems.isEmpty {
+                } else if discoverVM.isLoading, discoverVM.trendingItems.isEmpty {
                     ProgressView("Loading Discover...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -35,8 +36,8 @@ struct DiscoverView: View {
             .navigationTitle("Discover")
             .sheet(item: $selectedResult) { target in
                 switch target {
-                case .movie(let m): SeerrDetailView(movie: m)
-                case .tv(let t): SeerrDetailView(tv: t)
+                case let .movie(m): SeerrDetailView(movie: m)
+                case let .tv(t): SeerrDetailView(tv: t)
                 }
             }
         }
@@ -240,8 +241,8 @@ struct DiscoverView: View {
 
     private func openDetail(for result: SeerrSearchResult) {
         switch result {
-        case .movie(let m): selectedResult = .movie(m)
-        case .tv(let t): selectedResult = .tv(t)
+        case let .movie(m): selectedResult = .movie(m)
+        case let .tv(t): selectedResult = .tv(t)
         case .person: break
         }
     }
@@ -288,25 +289,25 @@ struct DiscoverView: View {
 
     private var hPad: CGFloat {
         #if os(tvOS)
-        return 60
+            return 60
         #else
-        return 16
+            return 16
         #endif
     }
 
     private var cardWidth: CGFloat {
         #if os(tvOS)
-        return 220
+            return 220
         #else
-        return 130
+            return 130
         #endif
     }
 
     private var gridCardWidth: CGFloat {
         #if os(tvOS)
-        return 240
+            return 240
         #else
-        return 130
+            return 130
         #endif
     }
 

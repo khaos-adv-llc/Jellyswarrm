@@ -1,9 +1,10 @@
 // MARK: - SeerrDetailView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Detail view for Seerr movies/TV — shows availability, ratings, and request form
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct SeerrDetailView: View {
     @Environment(DiscoverViewModel.self) private var discoverVM
@@ -32,9 +33,9 @@ struct SeerrDetailView: View {
                     // Backdrop
                     ZStack(alignment: .bottomLeading) {
                         AsyncImage(url: backdropURL ?? posterURL) { phase in
-                            if case .success(let image) = phase {
+                            if case let .success(image) = phase {
                                 image.resizable()
-                                    .aspectRatio(16/9, contentMode: .fill)
+                                    .aspectRatio(16 / 9, contentMode: .fill)
                             } else {
                                 Rectangle().fill(Color.gray.opacity(0.2))
                             }
@@ -62,7 +63,8 @@ struct SeerrDetailView: View {
                         // Metadata row
                         HStack(spacing: 10) {
                             if let year { badge(year, icon: "calendar") }
-                            if let rating { badge(String(format: "%.1f ★", rating), icon: nil).foregroundStyle(.yellow) }
+                            if let rating { badge(String(format: "%.1f ★", rating), icon: nil).foregroundStyle(.yellow)
+                            }
                             if let info = mediaInfo {
                                 availabilityBadge(info.status)
                             }
@@ -94,21 +96,21 @@ struct SeerrDetailView: View {
             }
             .ignoresSafeArea(edges: .top)
             #if !os(tvOS)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
-            }
             #endif
-            .sheet(isPresented: $showRequestForm) {
-                RequestFormView(
-                    mediaId: mediaId,
-                    title: title,
-                    isTV: isTV,
-                    posterURL: posterURL
-                )
-                .environment(discoverVM)
-            }
+                .sheet(isPresented: $showRequestForm) {
+                    RequestFormView(
+                        mediaId: mediaId,
+                        title: title,
+                        isTV: isTV,
+                        posterURL: posterURL
+                    )
+                    .environment(discoverVM)
+                }
         }
     }
 
@@ -223,7 +225,7 @@ struct RequestFormView: View {
     @State private var errorMessage: String?
 
     // For TV: mock seasons 1-5 (real app would fetch from SeerrAPIClient)
-    private let availableSeasons = Array(1...5)
+    private let availableSeasons = Array(1 ... 5)
 
     var body: some View {
         NavigationStack {
@@ -231,9 +233,9 @@ struct RequestFormView: View {
                 // Poster + title
                 HStack(spacing: 16) {
                     AsyncImage(url: posterURL) { phase in
-                        if case .success(let img) = phase {
+                        if case let .success(img) = phase {
                             img.resizable()
-                                .aspectRatio(2/3, contentMode: .fill)
+                                .aspectRatio(2 / 3, contentMode: .fill)
                                 .frame(width: 80, height: 120)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
@@ -316,12 +318,12 @@ struct RequestFormView: View {
             }
             .navigationTitle("Request")
             #if !os(tvOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
-            }
             #endif
         }
     }

@@ -1,4 +1,5 @@
 // MARK: - LibraryViewModel.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -7,11 +8,10 @@ import Observation
 @Observable
 @MainActor
 public final class LibraryViewModel {
-
     public var sections: [LibrarySection] = []
     public var continueWatching: [MediaItem] = []
     public var nextUp: [MediaItem] = []
-    public var recentlyAdded: [String: [MediaItem]] = [:]  // keyed by section id
+    public var recentlyAdded: [String: [MediaItem]] = [:] // keyed by section id
     public var isLoading: Bool = false
     public var error: NetworkError?
 
@@ -54,7 +54,7 @@ public final class LibraryViewModel {
         await withTaskGroup(of: (String, [MediaItem]).self) { group in
             for section in sections {
                 group.addTask {
-                    let items = (try? await self.api.getItems(
+                    let items = await (try? self.api.getItems(
                         server: server,
                         token: token,
                         parentId: section.id,
@@ -81,7 +81,8 @@ public final class LibraryViewModel {
         startIndex: Int = 0
     ) async throws -> ItemsResponse<MediaItem> {
         guard let server = appState.currentServer,
-              let token = appState.tokenForCurrentServer() else {
+              let token = appState.tokenForCurrentServer()
+        else {
             throw NetworkError.unauthorized
         }
         return try await api.getItems(
@@ -98,7 +99,8 @@ public final class LibraryViewModel {
 
     public func getDetail(for itemId: String) async throws -> MediaItem {
         guard let server = appState.currentServer,
-              let token = appState.tokenForCurrentServer() else {
+              let token = appState.tokenForCurrentServer()
+        else {
             throw NetworkError.unauthorized
         }
         return try await api.getItemDetail(server: server, token: token, itemId: itemId)
@@ -111,13 +113,12 @@ public final class LibraryViewModel {
 
     public func imageURL(for item: MediaItem, type: ImageType = .primary, maxWidth: Int = 400) -> URL? {
         guard let server = appState.currentServer else { return nil }
-        let tag: String?
-        switch type {
-        case .primary: tag = item.primaryImageTag
-        case .backdrop: tag = item.firstBackdropTag
-        case .thumb: tag = item.thumbImageTag
-        case .logo: tag = item.logoImageTag
-        default: tag = nil
+        let tag: String? = switch type {
+        case .primary: item.primaryImageTag
+        case .backdrop: item.firstBackdropTag
+        case .thumb: item.thumbImageTag
+        case .logo: item.logoImageTag
+        default: nil
         }
         guard tag != nil else { return nil }
         return api.imageURL(server: server, itemId: item.id, imageType: type, tag: tag, maxWidth: maxWidth)

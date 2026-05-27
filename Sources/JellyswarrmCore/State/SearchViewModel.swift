@@ -1,4 +1,5 @@
 // MARK: - SearchViewModel.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -7,7 +8,6 @@ import Observation
 @Observable
 @MainActor
 public final class SearchViewModel {
-
     public var query: String = ""
     public var jellyfinResults: [MediaItem] = []
     public var seerrResults: [SeerrSearchResult] = []
@@ -42,7 +42,7 @@ public final class SearchViewModel {
         }
 
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 350_000_000)  // 350ms debounce
+            try? await Task.sleep(nanoseconds: 350_000_000) // 350ms debounce
             guard !Task.isCancelled else { return }
             await performSearch(query: newQuery)
         }
@@ -55,7 +55,8 @@ public final class SearchViewModel {
         await withTaskGroup(of: Void.self) { group in
             // Search Jellyfin
             if let server = appState.currentServer,
-               let token = appState.tokenForCurrentServer() {
+               let token = appState.tokenForCurrentServer()
+            {
                 group.addTask {
                     do {
                         let results = try await self.jellyfinAPI.searchItems(
@@ -70,7 +71,8 @@ public final class SearchViewModel {
 
             // Search Seerr
             if let seerrServer = appState.seerrServer,
-               let cred = seerrCredential {
+               let cred = seerrCredential
+            {
                 group.addTask {
                     do {
                         let page = try await self.seerrAPI.search(

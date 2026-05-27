@@ -1,8 +1,9 @@
 // MARK: - SeerrSetupView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct SeerrSetupView: View {
     @Environment(AppState.self) private var appState
@@ -24,9 +25,11 @@ struct SeerrSetupView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Connect Jellyseerr")
                             .font(.headline)
-                        Text("Jellyseerr lets you browse content not yet on your server and submit requests. Your admin must have Jellyseerr running.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            "Jellyseerr lets you browse content not yet on your server and submit requests. Your admin must have Jellyseerr running."
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
@@ -35,10 +38,10 @@ struct SeerrSetupView: View {
                 Section("Jellyseerr Server") {
                     TextField("Server URL", text: $serverURL)
                         .autocorrectionDisabled()
-                        #if !os(tvOS)
+                    #if !os(tvOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
-                        #endif
+                    #endif
 
                     TextField("Display Name (optional)", text: $displayName)
                 }
@@ -46,9 +49,9 @@ struct SeerrSetupView: View {
                 Section {
                     TextField("API Key", text: $apiKey)
                         .autocorrectionDisabled()
-                        #if !os(tvOS)
+                    #if !os(tvOS)
                         .textInputAutocapitalization(.never)
-                        #endif
+                    #endif
                         .textContentType(.password)
                 } header: {
                     Text("API Key")
@@ -93,12 +96,12 @@ struct SeerrSetupView: View {
             }
             .navigationTitle("Add Jellyseerr")
             #if !os(tvOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
-            }
             #endif
         }
     }

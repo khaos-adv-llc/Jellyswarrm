@@ -1,4 +1,5 @@
 // MARK: - MediaItem.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -22,8 +23,8 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable {
     public let seriesName: String?
     public let seasonId: String?
     public let seasonName: String?
-    public let indexNumber: Int?        // episode number
-    public let parentIndexNumber: Int?  // season number
+    public let indexNumber: Int? // episode number
+    public let parentIndexNumber: Int? // season number
     public let userData: UserData?
     public let imageBlurHashes: [String: [String: String]]?
     public let backdropImageTags: [String]?

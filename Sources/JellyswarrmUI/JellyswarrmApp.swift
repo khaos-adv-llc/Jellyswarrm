@@ -1,12 +1,12 @@
 // MARK: - JellyswarrmApp.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 @main
 struct JellyswarrmApp: App {
-
     @State private var appState = AppState()
 
     var body: some Scene {
@@ -16,9 +16,9 @@ struct JellyswarrmApp: App {
                 .task {
                     appState.loadFromStorage()
                     #if os(tvOS)
-                    // Check whether this tvOS system profile needs onboarding
-                    // (runs asynchronously; RootView reacts to the published property)
-                    appState.checkTVOSUserOnboarding()
+                        // Check whether this tvOS system profile needs onboarding
+                        // (runs asynchronously; RootView reacts to the published property)
+                        appState.checkTVOSUserOnboarding()
                     #endif
                 }
         }
@@ -37,9 +37,9 @@ struct RootView: View {
     var body: some View {
         Group {
             #if os(tvOS)
-            tvOSRootView
+                tvOSRootView
             #else
-            defaultRootView
+                defaultRootView
             #endif
         }
         .animation(.easeInOut, value: appState.isAuthenticated)
@@ -55,17 +55,17 @@ struct RootView: View {
     /// 2. Not authenticated yet → show LoginView (fresh install / new server setup).
     /// 3. Authenticated → show main app.
     #if os(tvOS)
-    @ViewBuilder
-    private var tvOSRootView: some View {
-        if appState.needsTVOSUserOnboarding {
-            // New tvOS profile: let user pick a known server and sign in
-            TVOSUserWelcomeView()
-        } else if appState.isAuthenticated, appState.currentServer != nil {
-            MainTabView()
-        } else {
-            LoginView()
+        @ViewBuilder
+        private var tvOSRootView: some View {
+            if appState.needsTVOSUserOnboarding {
+                // New tvOS profile: let user pick a known server and sign in
+                TVOSUserWelcomeView()
+            } else if appState.isAuthenticated, appState.currentServer != nil {
+                MainTabView()
+            } else {
+                LoginView()
+            }
         }
-    }
     #endif
 
     // MARK: iOS / iPadOS / macOS

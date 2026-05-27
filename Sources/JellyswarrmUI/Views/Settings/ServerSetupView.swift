@@ -1,8 +1,9 @@
 // MARK: - ServerSetupView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct ServerSetupView: View {
     @Environment(AppState.self) private var appState
@@ -24,10 +25,10 @@ struct ServerSetupView: View {
                 Section("Server") {
                     TextField("Server URL", text: $serverURL)
                         .autocorrectionDisabled()
-                        #if !os(tvOS)
+                    #if !os(tvOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
-                        #endif
+                    #endif
                         .textContentType(.URL)
 
                     TextField("Display Name (optional)", text: $serverName)
@@ -36,9 +37,9 @@ struct ServerSetupView: View {
                 Section("Account") {
                     TextField("Username", text: $username)
                         .autocorrectionDisabled()
-                        #if !os(tvOS)
+                    #if !os(tvOS)
                         .textInputAutocapitalization(.never)
-                        #endif
+                    #endif
                         .textContentType(.username)
 
                     SecureField("Password", text: $password)
@@ -90,12 +91,12 @@ struct ServerSetupView: View {
             }
             .navigationTitle("Add Server")
             #if !os(tvOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
-            }
             #endif
         }
     }

@@ -1,4 +1,5 @@
 // MARK: - URL+Jellyfin.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -9,7 +10,7 @@ public extension URL {
         var cleaned = input.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 
-        if !cleaned.lowercased().hasPrefix("http://") && !cleaned.lowercased().hasPrefix("https://") {
+        if !cleaned.lowercased().hasPrefix("http://"), !cleaned.lowercased().hasPrefix("https://") {
             cleaned = "https://\(cleaned)"
         }
 

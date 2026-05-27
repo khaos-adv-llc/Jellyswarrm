@@ -1,4 +1,5 @@
 // MARK: - DiscoverViewModel.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -16,7 +17,6 @@ public enum DiscoverMediaTab: String, CaseIterable, Identifiable {
 @Observable
 @MainActor
 public final class DiscoverViewModel {
-
     // MARK: - State
 
     public var activeTab: DiscoverMediaTab = .trending
@@ -73,13 +73,13 @@ public final class DiscoverViewModel {
         error = nil
 
         do {
-            async let trendingTask      = seerrAPI.discoverTrending(baseURL: server.baseURL, credential: cred)
-            async let moviesTask        = seerrAPI.discoverMovies(baseURL: server.baseURL, credential: cred)
-            async let tvTask            = seerrAPI.discoverTV(baseURL: server.baseURL, credential: cred)
+            async let trendingTask = seerrAPI.discoverTrending(baseURL: server.baseURL, credential: cred)
+            async let moviesTask = seerrAPI.discoverMovies(baseURL: server.baseURL, credential: cred)
+            async let tvTask = seerrAPI.discoverTV(baseURL: server.baseURL, credential: cred)
             async let upcomingMoviesTask = seerrAPI.discoverMoviesUpcoming(baseURL: server.baseURL, credential: cred)
-            async let upcomingTVTask    = seerrAPI.discoverTVUpcoming(baseURL: server.baseURL, credential: cred)
-            async let movieGenresTask   = seerrAPI.getMovieGenres(baseURL: server.baseURL, credential: cred)
-            async let tvGenresTask      = seerrAPI.getTVGenres(baseURL: server.baseURL, credential: cred)
+            async let upcomingTVTask = seerrAPI.discoverTVUpcoming(baseURL: server.baseURL, credential: cred)
+            async let movieGenresTask = seerrAPI.getMovieGenres(baseURL: server.baseURL, credential: cred)
+            async let tvGenresTask = seerrAPI.getTVGenres(baseURL: server.baseURL, credential: cred)
 
             let (trending, movs, tv, upMovies, upTV, mGenres, tGenres) = try await (
                 trendingTask, moviesTask, tvTask,
@@ -88,22 +88,22 @@ public final class DiscoverViewModel {
             )
 
             trendingItems = trending.results
-            trendingPage  = trending.pageInfo.page
+            trendingPage = trending.pageInfo.page
             hasMoreTrending = trending.pageInfo.page < trending.pageInfo.pages
 
-            movies      = movs.results
-            moviesPage  = movs.pageInfo.page
+            movies = movs.results
+            moviesPage = movs.pageInfo.page
             hasMoreMovies = movs.pageInfo.page < movs.pageInfo.pages
 
-            tvShows  = tv.results
-            tvPage   = tv.pageInfo.page
+            tvShows = tv.results
+            tvPage = tv.pageInfo.page
             hasMoreTV = tv.pageInfo.page < tv.pageInfo.pages
 
             upcomingMovies = upMovies.results
-            upcomingTV     = upTV.results
+            upcomingTV = upTV.results
 
             movieGenres = mGenres
-            tvGenres    = tGenres
+            tvGenres = tGenres
 
         } catch let e as NetworkError {
             error = e
@@ -131,7 +131,7 @@ public final class DiscoverViewModel {
                 genre: selectedMovieGenre?.id
             )
             movies.append(contentsOf: page.results)
-            moviesPage  = page.pageInfo.page
+            moviesPage = page.pageInfo.page
             hasMoreMovies = page.pageInfo.page < page.pageInfo.pages
         } catch {}
         isLoadingMore = false
@@ -152,7 +152,7 @@ public final class DiscoverViewModel {
                 genre: selectedTVGenre?.id
             )
             tvShows.append(contentsOf: page.results)
-            tvPage   = page.pageInfo.page
+            tvPage = page.pageInfo.page
             hasMoreTV = page.pageInfo.page < page.pageInfo.pages
         } catch {}
         isLoadingMore = false
@@ -171,8 +171,8 @@ public final class DiscoverViewModel {
                 page: 1,
                 genre: genre?.id
             )
-            movies      = page.results
-            moviesPage  = 1
+            movies = page.results
+            moviesPage = 1
             hasMoreMovies = page.pageInfo.page < page.pageInfo.pages
         } catch {}
     }
@@ -188,8 +188,8 @@ public final class DiscoverViewModel {
                 page: 1,
                 genre: genre?.id
             )
-            tvShows  = page.results
-            tvPage   = 1
+            tvShows = page.results
+            tvPage = 1
             hasMoreTV = page.pageInfo.page < page.pageInfo.pages
         } catch {}
     }
@@ -198,7 +198,8 @@ public final class DiscoverViewModel {
 
     public func requestMovie(movieId: Int) async throws {
         guard let server = appState.seerrServer,
-              let cred = credential else {
+              let cred = credential
+        else {
             throw NetworkError.unauthorized
         }
         pendingRequestIds.insert(movieId)
@@ -218,7 +219,8 @@ public final class DiscoverViewModel {
 
     public func requestTV(tvId: Int, seasons: [Int]? = nil) async throws {
         guard let server = appState.seerrServer,
-              let cred = credential else {
+              let cred = credential
+        else {
             throw NetworkError.unauthorized
         }
         pendingRequestIds.insert(tvId)
@@ -243,11 +245,11 @@ public final class DiscoverViewModel {
     }
 
     public enum RequestButtonState {
-        case available     // can request
-        case requesting    // in-flight
-        case requested     // successfully submitted
-        case onServer      // already available
-        case pending       // request pending admin approval
+        case available // can request
+        case requesting // in-flight
+        case requested // successfully submitted
+        case onServer // already available
+        case pending // request pending admin approval
     }
 
     public func buttonState(for mediaInfo: SeerrMediaInfo?, mediaId: Int) -> RequestButtonState {

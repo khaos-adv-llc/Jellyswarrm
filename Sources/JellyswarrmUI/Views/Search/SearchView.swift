@@ -1,9 +1,10 @@
 // MARK: - SearchView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Unified search across Jellyfin library + Jellyseerr discover
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct SearchView: View {
     @Environment(SearchViewModel.self) private var searchVM
@@ -39,7 +40,7 @@ struct SearchView: View {
                     }
 
                     // Seerr results — items that can be requested
-                    if !searchVM.discoverableResults.isEmpty && appState.hasSeerrConfigured {
+                    if !searchVM.discoverableResults.isEmpty, appState.hasSeerrConfigured {
                         Section("Discover & Request") {
                             ForEach(searchVM.discoverableResults) { result in
                                 Button {
@@ -52,7 +53,7 @@ struct SearchView: View {
                         }
                     }
 
-                    if searchVM.jellyfinResults.isEmpty && searchVM.seerrResults.isEmpty {
+                    if searchVM.jellyfinResults.isEmpty, searchVM.seerrResults.isEmpty {
                         Section {
                             ContentUnavailableView.search(text: searchVM.query)
                         }
@@ -68,10 +69,10 @@ struct SearchView: View {
             }
             .sheet(item: $selectedSeerrResult) { result in
                 switch result {
-                case .movie(let m):
+                case let .movie(m):
                     SeerrDetailView(movie: m)
                         .environment(DiscoverViewModel(appState: appState))
-                case .tv(let t):
+                case let .tv(t):
                     SeerrDetailView(tv: t)
                         .environment(DiscoverViewModel(appState: appState))
                 case .person:
@@ -101,9 +102,9 @@ struct SearchView: View {
     private func libraryRow(item: MediaItem) -> some View {
         HStack(spacing: 12) {
             AsyncImage(url: libraryVM.imageURL(for: item, type: .primary, maxWidth: 80)) { phase in
-                if case .success(let image) = phase {
+                if case let .success(image) = phase {
                     image.resizable()
-                        .aspectRatio(2/3, contentMode: .fill)
+                        .aspectRatio(2 / 3, contentMode: .fill)
                         .frame(width: 44, height: 66)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 } else {
@@ -152,9 +153,9 @@ struct SearchView: View {
     private func seerrRow(result: SeerrSearchResult) -> some View {
         HStack(spacing: 12) {
             AsyncImage(url: result.fullPosterURL) { phase in
-                if case .success(let image) = phase {
+                if case let .success(image) = phase {
                     image.resizable()
-                        .aspectRatio(2/3, contentMode: .fill)
+                        .aspectRatio(2 / 3, contentMode: .fill)
                         .frame(width: 44, height: 66)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 } else {

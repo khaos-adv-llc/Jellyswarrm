@@ -1,9 +1,10 @@
 // MARK: - MainTabView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Adaptive navigation: TabView on iOS/tvOS, NavigationSplitView on macOS/iPadOS landscape
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
@@ -21,11 +22,11 @@ struct MainTabView: View {
 
     var body: some View {
         #if os(macOS)
-        macOSLayout
+            macOSLayout
         #elseif os(tvOS)
-        tvOSLayout
+            tvOSLayout
         #else
-        iOSLayout
+            iOSLayout
         #endif
     }
 

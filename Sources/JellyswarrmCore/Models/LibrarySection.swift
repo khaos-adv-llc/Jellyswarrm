@@ -1,4 +1,5 @@
 // MARK: - LibrarySection.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
@@ -41,18 +42,18 @@ public struct LibrarySection: Codable, Sendable, Identifiable, Equatable {
 
         public var systemImageName: String {
             switch self {
-            case .movies: return "film"
-            case .tvshows: return "tv"
-            case .music: return "music.note"
-            case .musicvideos: return "music.note.tv"
-            case .homevideos: return "video"
-            case .boxsets: return "square.stack"
-            case .books: return "book"
-            case .photos: return "photo"
-            case .livetv: return "antenna.radiowaves.left.and.right"
-            case .playlists: return "list.bullet"
-            case .folders: return "folder"
-            case .unknown: return "questionmark.folder"
+            case .movies: "film"
+            case .tvshows: "tv"
+            case .music: "music.note"
+            case .musicvideos: "music.note.tv"
+            case .homevideos: "video"
+            case .boxsets: "square.stack"
+            case .books: "book"
+            case .photos: "photo"
+            case .livetv: "antenna.radiowaves.left.and.right"
+            case .playlists: "list.bullet"
+            case .folders: "folder"
+            case .unknown: "questionmark.folder"
             }
         }
     }

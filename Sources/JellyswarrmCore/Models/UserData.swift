@@ -1,4 +1,5 @@
 // MARK: - UserData.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation

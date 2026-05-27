@@ -1,21 +1,22 @@
 // MARK: - LibraryView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct LibraryView: View {
     @Environment(LibraryViewModel.self) private var libraryVM
     @Environment(AppState.self) private var appState
 
     private let columns = [
-        GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16)
+        GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16),
     ]
 
     var body: some View {
         NavigationStack {
             Group {
-                if libraryVM.isLoading && libraryVM.sections.isEmpty {
+                if libraryVM.isLoading, libraryVM.sections.isEmpty {
                     ProgressView("Loading library...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if libraryVM.sections.isEmpty {
@@ -50,7 +51,7 @@ struct LibraryView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(Color.gray.opacity(0.15))
-                    .aspectRatio(16/9, contentMode: .fit)
+                    .aspectRatio(16 / 9, contentMode: .fit)
 
                 Image(systemName: section.collectionType?.systemImageName ?? "folder")
                     .font(.system(size: 40))
@@ -96,7 +97,7 @@ struct LibrarySectionView: View {
 
     var body: some View {
         ScrollView {
-            if isLoading && items.isEmpty {
+            if isLoading, items.isEmpty {
                 ProgressView().padding(.top, 80)
             } else {
                 LazyVGrid(columns: columns, spacing: 16) {
@@ -111,19 +112,19 @@ struct LibrarySectionView: View {
                         .buttonStyle(.plain)
                         .onAppear {
                             // Load next page when near the end
-                            if item.id == items.last?.id && items.count < totalCount {
+                            if item.id == items.last?.id, items.count < totalCount {
                                 Task { await loadNextPage() }
                             }
                         }
                     }
 
-                    if isLoading && !items.isEmpty {
+                    if isLoading, !items.isEmpty {
                         ProgressView().gridCellColumns(columns.count)
                     }
                 }
                 .padding()
 
-                if !isLoading && totalCount > 0 {
+                if !isLoading, totalCount > 0 {
                     Text("\(items.count) of \(totalCount) items")
                         .font(.caption)
                         .foregroundStyle(.secondary)

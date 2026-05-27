@@ -1,4 +1,5 @@
 // MARK: - AppState.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 //
 // tvOS multi-user strategy:
@@ -14,7 +15,6 @@ import Observation
 @Observable
 @MainActor
 public final class AppState {
-
     // MARK: - Published State
 
     public var currentServer: JellyfinServer?
@@ -34,13 +34,14 @@ public final class AppState {
     public var sharedServerConfigs: [JellyfinServer] = []
 
     // MARK: - UserDefaults Keys
+
     // Standard UserDefaults are per-user on tvOS with "Runs as Current User".
     // App Group UserDefaults are device-wide (shared between profiles).
 
-    private let activeServerIdKey   = "jellyswarrm_active_server_id"
-    private let activeSeerrIdKey    = "jellyswarrm_active_seerr_server_id"
-    private let serverIdsKey        = "jellyswarrm_server_ids"
-    private let seerrServerIdsKey   = "jellyswarrm_seerr_server_ids"
+    private let activeServerIdKey = "jellyswarrm_active_server_id"
+    private let activeSeerrIdKey = "jellyswarrm_active_seerr_server_id"
+    private let serverIdsKey = "jellyswarrm_server_ids"
+    private let seerrServerIdsKey = "jellyswarrm_seerr_server_ids"
 
     /// App Group suite — device-wide, readable by all tvOS profiles.
     /// Must match the App Group entitlement: com.jellyswarrm.shared
@@ -54,12 +55,13 @@ public final class AppState {
 
     /// Call once on app launch (in .task on RootView).
     public func loadFromStorage() {
-        loadSharedServerConfigs()   // always — needed for tvOS onboarding check
+        loadSharedServerConfigs() // always — needed for tvOS onboarding check
         loadSeerrServers()
 
         // Restore active server from per-user defaults
         if let activeId = UserDefaults.standard.string(forKey: activeServerIdKey),
-           let server = sharedServerConfigs.first(where: { $0.id == activeId }) {
+           let server = sharedServerConfigs.first(where: { $0.id == activeId })
+        {
             currentServer = server
             savedServers = sharedServerConfigs
             isAuthenticated = KeychainManager.exists(key: "jellyfin_token_\(server.id)")
@@ -67,7 +69,8 @@ public final class AppState {
 
         // Restore active Seerr server
         if let seerrId = UserDefaults.standard.string(forKey: activeSeerrIdKey),
-           let server = savedSeerrServers.first(where: { $0.id == seerrId }) {
+           let server = savedSeerrServers.first(where: { $0.id == seerrId })
+        {
             seerrServer = server
         }
     }
@@ -75,10 +78,10 @@ public final class AppState {
     /// Call after loadFromStorage — determines if tvOS onboarding sheet is needed.
     public func checkTVOSUserOnboarding() {
         #if os(tvOS)
-        // If there are shared server configs but this profile has no token → onboard
-        if !sharedServerConfigs.isEmpty && !isAuthenticated {
-            needsTVOSUserOnboarding = true
-        }
+            // If there are shared server configs but this profile has no token → onboard
+            if !sharedServerConfigs.isEmpty, !isAuthenticated {
+                needsTVOSUserOnboarding = true
+            }
         #endif
     }
 
@@ -215,10 +218,10 @@ public final class AppState {
 
         public static func == (lhs: SeerrOnboardingResult, rhs: SeerrOnboardingResult) -> Bool {
             switch (lhs, rhs) {
-            case (.notNeeded, .notNeeded): return true
-            case (.needsJellyfinAuth(let a), .needsJellyfinAuth(let b)): return a.id == b.id
-            case (.needsLocalCredentials(let a), .needsLocalCredentials(let b)): return a.id == b.id
-            default: return false
+            case (.notNeeded, .notNeeded): true
+            case let (.needsJellyfinAuth(a), .needsJellyfinAuth(b)): a.id == b.id
+            case let (.needsLocalCredentials(a), .needsLocalCredentials(b)): a.id == b.id
+            default: false
             }
         }
     }

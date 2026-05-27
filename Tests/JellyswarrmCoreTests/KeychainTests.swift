@@ -1,6 +1,7 @@
 // MARK: - KeychainTests.swift
-import XCTest
+
 @testable import JellyswarrmCore
+import XCTest
 
 final class KeychainTests: XCTestCase {
     func testSaveAndLoad() throws {

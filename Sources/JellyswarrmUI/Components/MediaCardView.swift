@@ -1,9 +1,10 @@
 // MARK: - MediaCardView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 // Reusable poster card — handles focus engine on tvOS, tap on iOS/macOS
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct MediaCardView: View {
     let item: MediaItem
@@ -24,11 +25,11 @@ struct MediaCardView: View {
         }
         .frame(width: cardWidth)
         #if os(tvOS)
-        .focusable()
-        .focused($isFocused)
-        .scaleEffect(isFocused ? 1.08 : 1.0)
-        .shadow(radius: isFocused ? 20 : 0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+            .focusable()
+            .focused($isFocused)
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .shadow(radius: isFocused ? 20 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
         #endif
     }
 
@@ -36,10 +37,10 @@ struct MediaCardView: View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: imageURL) { phase in
                 switch phase {
-                case .success(let image):
+                case let .success(image):
                     image
                         .resizable()
-                        .aspectRatio(2/3, contentMode: .fill)
+                        .aspectRatio(2 / 3, contentMode: .fill)
                 case .failure:
                     placeholderView
                 case .empty:
@@ -138,9 +139,9 @@ struct SeerrMediaCardView: View {
             ZStack(alignment: .topTrailing) {
                 AsyncImage(url: posterURL) { phase in
                     switch phase {
-                    case .success(let image):
+                    case let .success(image):
                         image.resizable()
-                            .aspectRatio(2/3, contentMode: .fill)
+                            .aspectRatio(2 / 3, contentMode: .fill)
                     default:
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.gray.opacity(0.2))
@@ -172,10 +173,10 @@ struct SeerrMediaCardView: View {
         }
         .frame(width: cardWidth)
         #if os(tvOS)
-        .focusable()
-        .focused($isFocused)
-        .scaleEffect(isFocused ? 1.08 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+            .focusable()
+            .focused($isFocused)
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
         #endif
     }
 

@@ -1,4 +1,5 @@
 // MARK: - KeychainManager.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 //
 // Security model:
@@ -20,19 +21,18 @@ public enum KeychainError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .itemNotFound:         return "Credential not found in Keychain."
-        case .duplicateItem:        return "Credential already exists."
-        case .invalidData:          return "Stored credential data is invalid."
-        case .unexpectedStatus(let s): return "Keychain error (OSStatus \(s))."
+        case .itemNotFound: "Credential not found in Keychain."
+        case .duplicateItem: "Credential already exists."
+        case .invalidData: "Stored credential data is invalid."
+        case let .unexpectedStatus(s): "Keychain error (OSStatus \(s))."
         }
     }
 }
 
 public enum KeychainManager {
-
     // MARK: - Constants
 
-    private static let service       = "com.jellyswarrm.app"
+    private static let service = "com.jellyswarrm.app"
     private static let sharedService = "com.jellyswarrm.app.shared"
 
     // MARK: - Per-user Keychain (default, isolated per tvOS profile)
@@ -41,11 +41,11 @@ public enum KeychainManager {
         guard let data = value.data(using: .utf8) else { throw KeychainError.invalidData }
         try? delete(key: key)
         let query: [CFString: Any] = [
-            kSecClass:            kSecClassGenericPassword,
-            kSecAttrService:      service,
-            kSecAttrAccount:      key,
-            kSecValueData:        data,
-            kSecAttrAccessible:   kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+            kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
         ]
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
@@ -53,18 +53,19 @@ public enum KeychainManager {
 
     public static func load(key: String) throws -> String {
         let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
+            kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: key,
-            kSecMatchLimit:  kSecMatchLimitOne,
-            kSecReturnData:  true
+            kSecMatchLimit: kSecMatchLimitOne,
+            kSecReturnData: true,
         ]
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             guard let data = result as? Data,
-                  let str  = String(data: data, encoding: .utf8) else {
+                  let str = String(data: data, encoding: .utf8)
+            else {
                 throw KeychainError.invalidData
             }
             return str
@@ -77,9 +78,9 @@ public enum KeychainManager {
 
     public static func delete(key: String) throws {
         let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
+            kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: key
+            kSecAttrAccount: key,
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -92,6 +93,7 @@ public enum KeychainManager {
     }
 
     // MARK: - Shared Keychain (visible to all tvOS profiles on this device)
+
     //
     // tvOS 16+: kSecAttrAccessibleAlwaysThisDeviceOnly combined with
     // NOT opting into data-protection keychain makes items user-independent.
@@ -101,16 +103,16 @@ public enum KeychainManager {
         guard let data = value.data(using: .utf8) else { throw KeychainError.invalidData }
         try? deleteShared(key: key)
         var query: [CFString: Any] = [
-            kSecClass:          kSecClassGenericPassword,
-            kSecAttrService:    sharedService,
-            kSecAttrAccount:    key,
-            kSecValueData:      data,
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: sharedService,
+            kSecAttrAccount: key,
+            kSecValueData: data,
             // Always-accessible so any tvOS profile can read server config
-            kSecAttrAccessible: kSecAttrAccessibleAlwaysThisDeviceOnly
+            kSecAttrAccessible: kSecAttrAccessibleAlwaysThisDeviceOnly,
         ]
         #if os(tvOS)
-        // Opt out of per-user data protection so the item is device-wide
-        query[kSecUseDataProtectionKeychain] = false
+            // Opt out of per-user data protection so the item is device-wide
+            query[kSecUseDataProtectionKeychain] = false
         #endif
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
@@ -118,21 +120,22 @@ public enum KeychainManager {
 
     public static func loadShared(key: String) throws -> String {
         var query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
+            kSecClass: kSecClassGenericPassword,
             kSecAttrService: sharedService,
             kSecAttrAccount: key,
-            kSecMatchLimit:  kSecMatchLimitOne,
-            kSecReturnData:  true
+            kSecMatchLimit: kSecMatchLimitOne,
+            kSecReturnData: true,
         ]
         #if os(tvOS)
-        query[kSecUseDataProtectionKeychain] = false
+            query[kSecUseDataProtectionKeychain] = false
         #endif
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             guard let data = result as? Data,
-                  let str  = String(data: data, encoding: .utf8) else {
+                  let str = String(data: data, encoding: .utf8)
+            else {
                 throw KeychainError.invalidData
             }
             return str
@@ -145,12 +148,12 @@ public enum KeychainManager {
 
     public static func deleteShared(key: String) throws {
         var query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
+            kSecClass: kSecClassGenericPassword,
             kSecAttrService: sharedService,
-            kSecAttrAccount: key
+            kSecAttrAccount: key,
         ]
         #if os(tvOS)
-        query[kSecUseDataProtectionKeychain] = false
+            query[kSecUseDataProtectionKeychain] = false
         #endif
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -167,9 +170,11 @@ public enum KeychainManager {
     public static func saveServerToken(_ token: String, for serverId: String) throws {
         try save(key: "jellyfin_token_\(serverId)", value: token)
     }
+
     public static func loadServerToken(for serverId: String) throws -> String {
         try load(key: "jellyfin_token_\(serverId)")
     }
+
     public static func deleteServerToken(for serverId: String) throws {
         try delete(key: "jellyfin_token_\(serverId)")
     }
@@ -181,11 +186,13 @@ public enum KeychainManager {
         guard let str = String(data: data, encoding: .utf8) else { throw KeychainError.invalidData }
         try saveShared(key: "server_config_\(server.id)", value: str)
     }
+
     public static func loadServerConfig(id: String) throws -> JellyfinServer {
         let str = try loadShared(key: "server_config_\(id)")
         guard let data = str.data(using: .utf8) else { throw KeychainError.invalidData }
         return try JSONDecoder().decode(JellyfinServer.self, from: data)
     }
+
     public static func deleteServerConfig(id: String) throws {
         try deleteShared(key: "server_config_\(id)")
     }
@@ -195,9 +202,11 @@ public enum KeychainManager {
     public static func saveSeerrApiKey(_ apiKey: String, for seerrId: String) throws {
         try saveShared(key: "seerr_apikey_\(seerrId)", value: apiKey)
     }
+
     public static func loadSeerrApiKey(for seerrId: String) throws -> String {
         try loadShared(key: "seerr_apikey_\(seerrId)")
     }
+
     public static func deleteSeerrApiKey(for seerrId: String) throws {
         try deleteShared(key: "seerr_apikey_\(seerrId)")
     }
@@ -209,6 +218,7 @@ public enum KeychainManager {
         guard let str = String(data: data, encoding: .utf8) else { throw KeychainError.invalidData }
         try saveShared(key: "seerr_config_\(server.id)", value: str)
     }
+
     public static func loadSeerrConfig(id: String) throws -> SeerrServer {
         let str = try loadShared(key: "seerr_config_\(id)")
         guard let data = str.data(using: .utf8) else { throw KeychainError.invalidData }
@@ -220,12 +230,15 @@ public enum KeychainManager {
     public static func saveSeerrSession(_ cookie: String, for seerrId: String) throws {
         try save(key: "seerr_session_\(seerrId)", value: cookie)
     }
+
     public static func loadSeerrSession(for seerrId: String) throws -> String {
         try load(key: "seerr_session_\(seerrId)")
     }
+
     public static func deleteSeerrSession(for seerrId: String) throws {
         try delete(key: "seerr_session_\(seerrId)")
     }
+
     public static func hasSeerrSession(for seerrId: String) -> Bool {
         exists(key: "seerr_session_\(seerrId)")
     }

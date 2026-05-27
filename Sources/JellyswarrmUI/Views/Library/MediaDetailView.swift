@@ -1,8 +1,9 @@
 // MARK: - MediaDetailView.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
-import SwiftUI
 import JellyswarrmCore
+import SwiftUI
 
 struct MediaDetailView: View {
     let item: MediaItem
@@ -52,9 +53,9 @@ struct MediaDetailView: View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: libraryVM.imageURL(for: displayItem, type: .backdrop, maxWidth: 1280)) { phase in
                 switch phase {
-                case .success(let image):
+                case let .success(image):
                     image.resizable()
-                        .aspectRatio(16/9, contentMode: .fill)
+                        .aspectRatio(16 / 9, contentMode: .fill)
                 default:
                     Rectangle().fill(Color.gray.opacity(0.2))
                 }
@@ -174,7 +175,8 @@ struct MediaDetailView: View {
                                 .frame(width: 60, height: 60)
                                 .overlay {
                                     if let server = appState.currentServer,
-                                       let tag = person.primaryImageTag {
+                                       let tag = person.primaryImageTag
+                                    {
                                         AsyncImage(url: JellyfinAPIClient.shared.imageURL(
                                             server: server,
                                             itemId: person.id,
@@ -182,7 +184,7 @@ struct MediaDetailView: View {
                                             tag: tag,
                                             maxWidth: 120
                                         )) { phase in
-                                            if case .success(let image) = phase {
+                                            if case let .success(image) = phase {
                                                 image.resizable().aspectRatio(contentMode: .fill)
                                             } else {
                                                 Image(systemName: "person.fill")

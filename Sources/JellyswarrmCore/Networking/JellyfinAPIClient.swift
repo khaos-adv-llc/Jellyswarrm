@@ -1,11 +1,11 @@
 // MARK: - JellyfinAPIClient.swift
+
 // Jellyswarrm — GPL v3 with App Store exception
 
 import Foundation
 
 /// Thread-safe Jellyfin API client using Swift concurrency
 public actor JellyfinAPIClient {
-
     public static let shared = JellyfinAPIClient()
 
     private let session: URLSession
@@ -17,7 +17,7 @@ public actor JellyfinAPIClient {
         config.timeoutIntervalForResource = 300
         config.httpAdditionalHeaders = [
             "Accept": "application/json",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         ]
         self.session = URLSession(configuration: config)
 
@@ -30,8 +30,10 @@ public actor JellyfinAPIClient {
             if let date = formatter.date(from: string) { return date }
             formatter.formatOptions = [.withInternetDateTime]
             if let date = formatter.date(from: string) { return date }
-            throw DecodingError.dataCorruptedError(in: container,
-                debugDescription: "Cannot decode date: \(string)")
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(string)"
+            )
         }
     }
 
@@ -102,7 +104,10 @@ public actor JellyfinAPIClient {
         ]
         if let parentId { queryItems.append(URLQueryItem(name: "ParentId", value: parentId)) }
         if !filters.isEmpty { queryItems.append(URLQueryItem(name: "Filters", value: filters.joined(separator: ","))) }
-        if !includeItemTypes.isEmpty { queryItems.append(URLQueryItem(name: "IncludeItemTypes", value: includeItemTypes.joined(separator: ","))) }
+        if !includeItemTypes.isEmpty { queryItems.append(URLQueryItem(
+            name: "IncludeItemTypes",
+            value: includeItemTypes.joined(separator: ",")
+        )) }
         components.queryItems = queryItems
 
         guard let url = components.url else { throw NetworkError.invalidURL }
@@ -182,7 +187,7 @@ public actor JellyfinAPIClient {
         request.httpMethod = "POST"
         let body: [String: Any] = [
             "UserId": server.userId,
-            "DeviceProfile": defaultDeviceProfile()
+            "DeviceProfile": defaultDeviceProfile(),
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return try await perform(request: request)
@@ -406,7 +411,12 @@ public actor JellyfinAPIClient {
         let deviceName = UIDeviceHelper.deviceName
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         request.setValue(
-            server.authorizationHeader(token: token, deviceId: deviceId, deviceName: deviceName, appVersion: appVersion),
+            server.authorizationHeader(
+                token: token,
+                deviceId: deviceId,
+                deviceName: deviceName,
+                appVersion: appVersion
+            ),
             forHTTPHeaderField: "X-Emby-Authorization"
         )
         return request
@@ -441,7 +451,7 @@ public actor JellyfinAPIClient {
     private func defaultDeviceProfile() -> [String: Any] {
         // A broad device profile that allows direct play for common formats
         // and falls back to transcode for everything else
-        return [
+        [
             "MaxStaticBitrate": 140_000_000,
             "MaxStreamingBitrate": 140_000_000,
             "MusicStreamingTranscodingBitrate": 384_000,
@@ -464,7 +474,7 @@ public actor JellyfinAPIClient {
                     "MaxAudioChannels": "6",
                     "MinSegments": "2",
                     "BreakOnNonKeyFrames": true,
-                ]
+                ],
             ],
             "ContainerProfiles": [],
             "CodecProfiles": [],
@@ -473,7 +483,7 @@ public actor JellyfinAPIClient {
                 ["Format": "vtt", "Method": "External"],
                 ["Format": "ass", "Method": "External"],
                 ["Format": "ssa", "Method": "External"],
-            ]
+            ],
         ]
     }
 }
@@ -494,11 +504,11 @@ public enum UIDeviceHelper {
 
     public static var deviceName: String {
         #if os(iOS) || os(tvOS)
-        return UIDevice.current.name
+            return UIDevice.current.name
         #elseif os(macOS)
-        return Host.current().localizedName ?? "Mac"
+            return Host.current().localizedName ?? "Mac"
         #else
-        return "Jellyswarrm Device"
+            return "Jellyswarrm Device"
         #endif
     }
 }
