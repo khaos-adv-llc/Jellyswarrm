@@ -97,13 +97,24 @@ public struct VideoPlayerView: View {
                 await warmupTranscode(url: url)
             }
 
-            let playerItem = AVPlayerItem(url: url)
+            // Use AVURLAsset with network options so AVPlayer handles the
+            // stream correctly regardless of Content-Length / accept-ranges headers.
+            // stream.mp4 from Jellyfin has accept-ranges: none and no Content-Length —
+            // AVPlayer needs allowsCellularAccess + explicit network timeout hints.
+            let asset = AVURLAsset(url: url, options: [
+                "AVURLAssetHTTPHeaderFieldsKey": [:],
+                AVURLAssetPreferPreciseDurationAndTimingKey: false,
+            ])
+            let playerItem = AVPlayerItem(asset: asset)
             playerItem.preferredPeakBitRate = 0
+            // Don't let AVPlayer stall waiting for seekability — stream.mp4 is
+            // served without Content-Length so AVPlayer must buffer forward only.
+            playerItem.preferredForwardBufferDuration = 10
             vm.configurePlayerItem(playerItem)
             let avPlayer = AVPlayer(playerItem: playerItem)
+            avPlayer.automaticallyWaitsToMinimizeStalling = true
 
-            // Observe AVPlayerItem status so we get a clear error if AVFoundation
-            // rejects the URL — otherwise the failure is silent (play icon w/ line).
+            // Observe AVPlayerItem status for diagnostics
             let observation = playerItem.observe(\.status, options: [.new]) { item, _ in
                 switch item.status {
                 case .failed:
@@ -113,15 +124,29 @@ public struct VideoPlayerView: View {
                         print("[Player] AVPlayerItem error domain=\(err.domain) code=\(err.code) userInfo=\(err.userInfo)")
                     }
                 case .readyToPlay:
-                    print("[Player] AVPlayerItem readyToPlay")
+                    print("[Player] AVPlayerItem readyToPlay ✓")
                 case .unknown:
-                    print("[Player] AVPlayerItem status unknown")
+                    print("[Player] AVPlayerItem status unknown — waiting for asset load")
                 @unknown default:
                     break
                 }
             }
-            // Hold observation alive for the duration of playback
             _ = observation
+
+            // Also observe timeControlStatus for the prohibited-icon diagnosis
+            let tcObservation = avPlayer.observe(\.timeControlStatus, options: [.new]) { p, _ in
+                switch p.timeControlStatus {
+                case .playing:
+                    print("[Player] AVPlayer playing ✓")
+                case .paused:
+                    print("[Player] AVPlayer paused (reason: \(String(describing: p.reasonForWaitingToPlay)))")
+                case .waitingToPlayAtSpecifiedRate:
+                    print("[Player] AVPlayer waiting: \(String(describing: p.reasonForWaitingToPlay))")
+                @unknown default:
+                    break
+                }
+            }
+            _ = tcObservation
 
             player = avPlayer
             if vm.positionTicks > 0 {
