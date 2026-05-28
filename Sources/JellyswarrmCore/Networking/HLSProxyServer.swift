@@ -132,7 +132,15 @@ public actor HLSProxyServer {
             let (data, response) = try await urlSession.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else { connection.cancel(); return }
 
-            let responseBody = originalMethod == "HEAD" ? Data() : data
+            var bodyData = data
+            let contentType = httpResponse.mimeType ?? ""
+            let isPlaylist = contentType.contains("mpegurl") || contentType.contains("x-mpegURL") || targetURL.path.hasSuffix(".m3u8")
+            if isPlaylist, let playlistString = String(data: data, encoding: .utf8) {
+                let rewritten = rewritePlaylist(playlistString, requestURL: targetURL, jellyfinHost: targetURL.host ?? proxyHost, jellyfinScheme: targetURL.scheme ?? proxyScheme)
+                bodyData = rewritten.data(using: .utf8) ?? data
+            }
+
+            let responseBody = originalMethod == "HEAD" ? Data() : bodyData
 
             var responseHeaders = "HTTP/1.1 \(httpResponse.statusCode) OK\r\n"
             responseHeaders += "Content-Type: \(httpResponse.mimeType ?? "application/octet-stream")\r\n"
@@ -150,6 +158,45 @@ public actor HLSProxyServer {
         }
 
         connection.cancel()
+    }
+
+    /// Rewrite m3u8 playlist URLs (segments and sub-playlists) to route through the proxy.
+    /// Relative URLs are resolved against the request URL, then host+scheme rewritten to the proxy
+    /// with `_proxy_host` / `_proxy_scheme` query params so the proxy can forward subsequent requests.
+    private func rewritePlaylist(_ playlist: String, requestURL: URL, jellyfinHost: String, jellyfinScheme: String) -> String {
+        let baseURL = requestURL.deletingLastPathComponent()
+        var lines = playlist.components(separatedBy: "\n")
+        for i in 0..<lines.count {
+            let trimmed = lines[i].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+
+            let resolved: URL?
+            if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+                resolved = URL(string: trimmed)
+            } else {
+                resolved = URL(string: trimmed, relativeTo: baseURL)?.absoluteURL
+            }
+
+            guard let absURL = resolved,
+                  var components = URLComponents(url: absURL, resolvingAgainstBaseURL: false) else {
+                continue
+            }
+
+            let originalScheme = components.scheme ?? jellyfinScheme
+            let originalHost = components.host ?? jellyfinHost
+            components.scheme = "http"
+            components.host = "127.0.0.1"
+            components.port = Int(port)
+            var queryItems = components.queryItems ?? []
+            queryItems.removeAll { $0.name == "_proxy_host" || $0.name == "_proxy_scheme" }
+            queryItems.append(URLQueryItem(name: "_proxy_host", value: originalHost))
+            queryItems.append(URLQueryItem(name: "_proxy_scheme", value: originalScheme))
+            components.queryItems = queryItems
+            if let rewritten = components.url?.absoluteString {
+                lines[i] = rewritten
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func receive(from connection: NWConnection) async -> Data? {
