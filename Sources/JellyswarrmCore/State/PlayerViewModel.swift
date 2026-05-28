@@ -35,6 +35,13 @@ public final class PlayerViewModel {
     // atomic test-and-set on the main actor.
     private var _loadingStarted: Bool = false
 
+    /// Set to true once the player has actually rendered a frame (iOS:
+    /// AVPlayerViewController.isReadyForDisplay → true; other platforms: after
+    /// seek+play). Stop reports are skipped when this is false, so transient
+    /// view lifecycle events during the SwiftUI → UIKit presentation do not
+    /// zero out the server's stored resume position.
+    public var hasStartedPlayback: Bool = false
+
     // Current chapter name (updated by periodic time observer)
     public var currentChapterName: String?
 
@@ -191,20 +198,11 @@ public final class PlayerViewModel {
                 }
             }
 
-            // Report playback start
-            try await api.reportPlaybackStart(
-                server: server,
-                token: token,
-                itemId: item.id,
-                positionTicks: positionTicks,
-                mediaSourceId: source.id,
-                playSessionId: playSessionId,
-                playMethod: isHLSTranscode ? "Transcode" : "DirectStream",
-                audioStreamIndex: audioStreamIndex,
-                subtitleStreamIndex: subtitleStreamIndex
-            )
-
-            startProgressReporting()
+            // NOTE: reportPlaybackStart is intentionally deferred until the
+            // player actually renders a frame. See notifyPlaybackStarted().
+            // Sending Start before the player begins playing means a spurious
+            // stop (e.g. SwiftUI .onDisappear during the player presentation)
+            // would race ahead of it and zero out the server's resume position.
 
         } catch let e as NetworkError {
             error = e
@@ -213,6 +211,33 @@ public final class PlayerViewModel {
         }
 
         isLoading = false
+    }
+
+    /// Called by the view layer once the player has rendered its first frame
+    /// (iOS: AVPlayerViewController.isReadyForDisplay → true; other platforms:
+    /// after seek+play returns). Sends the deferred Start report and arms the
+    /// periodic progress reporter.
+    public func notifyPlaybackStarted() async {
+        guard !hasStartedPlayback else { return }
+        hasStartedPlayback = true
+
+        guard let item = currentItem,
+              let source = selectedSource,
+              let server = appState.currentServer,
+              let token = appState.tokenForCurrentServer() else { return }
+
+        try? await api.reportPlaybackStart(
+            server: server,
+            token: token,
+            itemId: item.id,
+            positionTicks: positionTicks,
+            mediaSourceId: source.id,
+            playSessionId: playSessionId,
+            playMethod: isHLSTranscode ? "Transcode" : "DirectStream",
+            audioStreamIndex: audioStreamIndex,
+            subtitleStreamIndex: subtitleStreamIndex
+        )
+        startProgressReporting()
     }
 
     // MARK: - Progress Reporting
@@ -248,24 +273,39 @@ public final class PlayerViewModel {
     }
 
     public func stop() async {
+        // If the player never actually rendered a frame, this is a spurious
+        // teardown (e.g. SwiftUI's .onDisappear firing during the UIKit
+        // player presentation). Skip the Stopped report and DO NOT reset
+        // session state — the player is still loading and a state reset
+        // would either tear down the in-flight session or let a re-run of
+        // .task spawn a duplicate PlaybackInfo / transcode session.
+        guard hasStartedPlayback else {
+            print("[Progress] Skipping stop report — playback never started")
+            return
+        }
+
         reportingTask?.cancel()
         stopChapterObserver()
-        guard let item = currentItem,
-              let source = selectedSource,
-              let server = appState.currentServer,
-              let token = appState.tokenForCurrentServer() else { return }
-        let method = isHLSTranscode ? "Transcode" : "DirectStream"
-        try? await api.reportPlaybackStopped(
-            server: server,
-            token: token,
-            itemId: item.id,
-            positionTicks: positionTicks,
-            mediaSourceId: source.id,
-            playSessionId: playSessionId,
-            playMethod: method
-        )
-        print("[Progress] Stopped at \(positionTicks) ticks")
+
+        if let item = currentItem,
+           let source = selectedSource,
+           let server = appState.currentServer,
+           let token = appState.tokenForCurrentServer() {
+            let method = isHLSTranscode ? "Transcode" : "DirectStream"
+            try? await api.reportPlaybackStopped(
+                server: server,
+                token: token,
+                itemId: item.id,
+                positionTicks: positionTicks,
+                mediaSourceId: source.id,
+                playSessionId: playSessionId,
+                playMethod: method
+            )
+            print("[Progress] Stopped at \(positionTicks) ticks")
+        }
+
         isPlaying = false
+        hasStartedPlayback = false
         currentItem = nil
         playbackURL = nil
         isHLSTranscode = false

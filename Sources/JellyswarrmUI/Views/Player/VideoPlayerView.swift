@@ -149,6 +149,7 @@ public struct VideoPlayerView: View {
                 )
             }
             avPlayer.play()
+            await vm.notifyPlaybackStarted()
 
             // Track position every 10s so PlayerViewModel.reportProgress sends
             // the live time, and persist a local backup for offline resume.
@@ -201,6 +202,7 @@ public struct VideoPlayerView: View {
         playerVC.itemId = item.id
         playerVC.resumeSeconds = playerVM.positionTicks.ticksToSeconds
 
+        let vmRef = playerVM
         let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
             print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
             guard change.newValue == true, let player = player else { return }
@@ -209,6 +211,9 @@ public struct VideoPlayerView: View {
             let resumeSeconds = playerVC?.resumeSeconds ?? 0
             let itemId = playerVC?.itemId ?? ""
             print("[Resume] Loaded \(Int64(resumeSeconds * 10_000_000)) ticks for \(itemId)")
+            let notifyStarted: () -> Void = {
+                Task { @MainActor in await vmRef.notifyPlaybackStarted() }
+            }
             if resumeSeconds > 5.0 {
                 let resumeTime = CMTime(seconds: resumeSeconds, preferredTimescale: 600)
                 print("[Player] Seeking to resume position: \(resumeSeconds)s")
@@ -219,10 +224,12 @@ public struct VideoPlayerView: View {
                 ) { finished in
                     player.play()
                     print("[Player] Resumed and playing from \(resumeSeconds)s (seek finished=\(finished))")
+                    notifyStarted()
                 }
             } else {
                 player.play()
                 print("[Player] Playing from start")
+                notifyStarted()
             }
         }
         playerVC.readyObservation = readyObservation
