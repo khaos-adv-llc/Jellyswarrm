@@ -94,9 +94,9 @@ public struct SettingsView: View {
                     }
                 }
 
-                // MARK: Jellyseerr
+                // MARK: Seerr
 
-                Section("Jellyseerr / Overseerr") {
+                Section("Seerr") {
                     if let seerr = appState.seerrServer {
                         HStack {
                             VStack(alignment: .leading) {
@@ -114,7 +114,7 @@ public struct SettingsView: View {
                         Button(role: .destructive) {
                             appState.removeSeerrServer(seerr)
                         } label: {
-                            Label("Remove Jellyseerr", systemImage: "trash")
+                            Label("Remove Seerr", systemImage: "trash")
                         }
                     } else {
                         Text("Not configured")
@@ -122,7 +122,7 @@ public struct SettingsView: View {
                         Button {
                             showAddSeerr = true
                         } label: {
-                            Label("Connect Jellyseerr", systemImage: "plus.circle")
+                            Label("Connect Seerr", systemImage: "plus.circle")
                         }
                     }
                 }
@@ -216,7 +216,7 @@ public struct PlaybackSettingsView: View {
             }
         }
         .navigationTitle("Playback")
-        #if !os(tvOS)
+        #if !os(tvOS) && !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
     }

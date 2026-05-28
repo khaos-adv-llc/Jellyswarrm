@@ -38,7 +38,7 @@ public struct JellyfinServer: Sendable, Identifiable, Equatable, Hashable, Codab
     }
 }
 
-/// Represents a configured Jellyseerr server.
+/// Represents a configured Seerr server.
 /// API key is stored in Keychain.
 public struct SeerrServer: Sendable, Identifiable, Equatable, Hashable, Codable {
     public let id: String

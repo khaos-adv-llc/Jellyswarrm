@@ -1,7 +1,7 @@
 // MARK: - DiscoverView.swift
 
 // Jellyswarrm — GPL v3 with App Store exception
-// Jellyseerr-powered discover section: browse trending, upcoming, by genre.
+// Seerr-powered discover section: browse trending, upcoming, by genre.
 // Items show availability status and request buttons directly.
 
 import JellyswarrmCore
@@ -185,7 +185,7 @@ public struct DiscoverView: View {
 
             sectionHeader("Movies")
 
-            LazyVGrid(columns: gridColumns, spacing: 16) {
+            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 16) {
                 ForEach(discoverVM.movies) { movie in
                     SeerrMediaCardView(
                         title: movie.title,
@@ -223,7 +223,7 @@ public struct DiscoverView: View {
 
             sectionHeader("TV Shows")
 
-            LazyVGrid(columns: gridColumns, spacing: 16) {
+            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 16) {
                 ForEach(discoverVM.tvShows) { show in
                     SeerrMediaCardView(
                         title: show.name,
@@ -296,12 +296,12 @@ public struct DiscoverView: View {
 
     private var noSeerrView: some View {
         ContentUnavailableView {
-            Label("Jellyseerr Not Configured", systemImage: "sparkles.tv")
+            Label("Seerr Not Configured", systemImage: "sparkles.tv")
         } description: {
-            Text("Connect a Jellyseerr server in Settings to browse and request content.")
+            Text("Connect a Seerr server in Settings to browse and request content.")
         } actions: {
             NavigationLink(destination: SeerrSetupView()) {
-                Text("Connect Jellyseerr")
+                Text("Connect Seerr")
                     .fontWeight(.semibold)
             }
             .buttonStyle(.borderedProminent)

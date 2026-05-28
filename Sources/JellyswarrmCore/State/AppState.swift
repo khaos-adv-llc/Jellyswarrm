@@ -33,6 +33,11 @@ public final class AppState {
     /// True when a tvOS profile switch is detected and this profile has no token yet.
     public var needsTVOSUserOnboarding: Bool = false
 
+    /// True while the multi-step onboarding wizard is in progress. The router
+    /// uses this to keep showing the wizard after Jellyfin sign-in so the user
+    /// can continue to the Seerr setup steps instead of jumping straight to Home.
+    public var isOnboarding: Bool = false
+
     /// Server configs readable from shared storage — populated before per-user auth.
     public var sharedServerConfigs: [JellyfinServer] = []
 
@@ -73,15 +78,28 @@ public final class AppState {
 
     /// Re-read storage when the app foregrounds. On tvOS the OS may swap the
     /// per-user sandbox during a profile switch, so the in-memory state can be
-    /// stale and the per-user token may now be missing.
+    /// stale and the per-user token may now be missing. Clear in-memory state
+    /// first so lingering data from the previous profile doesn't bleed through.
     public func handleForegroundTransition() {
         let previousServerCount = savedServers.count
         let wasAuthenticated = isAuthenticated
+
+        // Clear in-memory state before reloading from the (possibly new user's) keychain.
+        savedServers = []
+        sharedServerConfigs = []
+        savedSeerrServers = []
+        currentServer = nil
+        seerrServer = nil
+        isAuthenticated = false
+
         loadFromStorage()
+
         if previousServerCount > 0, savedServers.isEmpty {
             needsTVOSUserOnboarding = true
         } else if wasAuthenticated, !isAuthenticated {
             // Same shared configs but the per-user token is gone → new profile
+            needsTVOSUserOnboarding = true
+        } else if savedServers.isEmpty {
             needsTVOSUserOnboarding = true
         }
     }
@@ -148,22 +166,37 @@ public final class AppState {
 
     private func loadSharedServerConfigs() {
         let ids = sharedDefaults.stringArray(forKey: "shared_server_ids") ?? []
-        sharedServerConfigs = ids.compactMap { try? KeychainManager.loadServerConfig(id: $0) }
+        let loaded = ids.compactMap { try? KeychainManager.loadServerConfig(id: $0) }
+        // Dedupe by baseURL — guards against stale stored IDs that resolve to the
+        // same server (e.g. after a failed-then-retried sign-in).
+        sharedServerConfigs = loaded.reduce(into: [JellyfinServer]()) { result, server in
+            if !result.contains(where: { $0.baseURL == server.baseURL }) {
+                result.append(server)
+            }
+        }
         savedServers = sharedServerConfigs
     }
 
     private func loadSeerrServers() {
         let ids = sharedDefaults.stringArray(forKey: "shared_seerr_ids") ?? []
-        savedSeerrServers = ids.compactMap { try? KeychainManager.loadSeerrConfig(id: $0) }
+        let loaded = ids.compactMap { try? KeychainManager.loadSeerrConfig(id: $0) }
+        savedSeerrServers = loaded.reduce(into: [SeerrServer]()) { result, server in
+            if !result.contains(where: { $0.baseURL == server.baseURL }) {
+                result.append(server)
+            }
+        }
     }
 
     // MARK: - Server Management
 
     /// Add a new Jellyfin server. Config goes to shared Keychain; token per-user.
+    /// If a server with the same baseURL already exists, replace it instead of
+    /// appending — this prevents duplicate entries after a failed-then-retried
+    /// sign-in or a tvOS profile switch.
     public func addServer(_ server: JellyfinServer, token: String) throws {
         // Config (URL, name) → device-wide shared Keychain
         try KeychainManager.saveServerConfig(server)
-        // Token → per-user Keychain
+        // Token → per-user Keychain (only after success)
         try KeychainManager.saveServerToken(token, for: server.id)
 
         // Register server ID in shared App Group defaults so other profiles find it
@@ -173,8 +206,14 @@ public final class AppState {
             sharedDefaults.set(ids, forKey: "shared_server_ids")
         }
 
-        if !savedServers.contains(where: { $0.id == server.id }) {
+        if let idx = savedServers.firstIndex(where: { $0.baseURL == server.baseURL }) {
+            savedServers[idx] = server
+        } else {
             savedServers.append(server)
+        }
+        if let idx = sharedServerConfigs.firstIndex(where: { $0.baseURL == server.baseURL }) {
+            sharedServerConfigs[idx] = server
+        } else {
             sharedServerConfigs.append(server)
         }
         recordLastServerURL(server.baseURL)
@@ -204,6 +243,13 @@ public final class AppState {
     public func completeLogin(server: JellyfinServer, token: String) {
         try? addServer(server, token: token)
         needsTVOSUserOnboarding = false
+    }
+
+    /// Called from the onboarding wizard's final step. Clears any onboarding
+    /// flags so the router transitions to the main app.
+    public func completeOnboarding() {
+        needsTVOSUserOnboarding = false
+        isOnboarding = false
     }
 
     public func setActiveServer(_ server: JellyfinServer) {
@@ -245,7 +291,9 @@ public final class AppState {
             sharedDefaults.set(ids, forKey: "shared_seerr_ids")
         }
 
-        if !savedSeerrServers.contains(where: { $0.id == server.id }) {
+        if let idx = savedSeerrServers.firstIndex(where: { $0.baseURL == server.baseURL }) {
+            savedSeerrServers[idx] = server
+        } else {
             savedSeerrServers.append(server)
         }
         recordLastSeerr(url: server.baseURL, mode: server.authMode)

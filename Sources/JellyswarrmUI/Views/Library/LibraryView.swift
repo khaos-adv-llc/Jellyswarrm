@@ -109,7 +109,7 @@ public struct LibrarySectionView: View {
             if isLoading, items.isEmpty {
                 ProgressView().padding(.top, 80)
             } else {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                LazyVGrid(columns: columns, alignment: .center, spacing: 16) {
                     ForEach(items) { item in
                         NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
                             MediaCardView(
@@ -131,6 +131,7 @@ public struct LibrarySectionView: View {
                         ProgressView().gridCellColumns(columns.count)
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .padding()
 
                 if !isLoading, totalCount > 0 {

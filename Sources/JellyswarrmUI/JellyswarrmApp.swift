@@ -39,6 +39,10 @@ public struct RootView: View {
             if appState.needsTVOSUserOnboarding {
                 // New tvOS profile detected: offer quick-connect or fresh setup.
                 TVUserSwitchView()
+            } else if appState.isOnboarding {
+                // Wizard still in progress (e.g. user has signed in but hasn't
+                // reached the final step yet). Keep showing it.
+                OnboardingWizardView()
             } else if appState.isAuthenticated, appState.currentServer != nil {
                 MainTabView()
             } else if appState.savedServers.isEmpty {
@@ -53,7 +57,9 @@ public struct RootView: View {
 
     @ViewBuilder
     private var defaultRootView: some View {
-        if appState.isAuthenticated, appState.currentServer != nil {
+        if appState.isOnboarding {
+            OnboardingWizardView()
+        } else if appState.isAuthenticated, appState.currentServer != nil {
             MainTabView()
         } else if appState.savedServers.isEmpty {
             OnboardingWizardView()

@@ -120,9 +120,7 @@ public struct SeerrDetailView: View {
 
                     // Overview
                     if let ov = overview {
-                        Text(ov)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                        ExpandableText(ov, font: .callout)
                     }
 
                     // Request / Status section
@@ -502,8 +500,10 @@ public struct RequestFormView: View {
                 }
             }
             .navigationTitle("Request")
-            #if !os(tvOS)
+            #if !os(tvOS) && !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if !os(tvOS)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }

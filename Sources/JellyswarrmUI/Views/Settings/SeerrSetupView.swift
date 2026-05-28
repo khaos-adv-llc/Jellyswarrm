@@ -28,10 +28,10 @@ public struct SeerrSetupView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Connect Jellyseerr")
+                        Text("Connect Seerr")
                             .font(.headline)
                         Text(
-                            "Jellyseerr lets you browse content not yet on your server and submit requests. Your admin must have Jellyseerr running."
+                            "Seerr lets you browse content not yet on your server and submit requests. Your admin must have Seerr running."
                         )
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -40,7 +40,7 @@ public struct SeerrSetupView: View {
                     .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
                 }
 
-                Section("Jellyseerr Server") {
+                Section("Seerr Server") {
                     TextField("Server URL", text: $serverURL)
                         .autocorrectionDisabled()
                     #if os(iOS)
@@ -100,9 +100,11 @@ public struct SeerrSetupView: View {
                     .disabled(!canConnect || isTesting)
                 }
             }
-            .navigationTitle("Add Jellyseerr")
-            #if !os(tvOS)
+            .navigationTitle("Add Seerr")
+            #if !os(tvOS) && !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if !os(tvOS)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
@@ -126,7 +128,7 @@ public struct SeerrSetupView: View {
             } header: {
                 Text("API Key")
             } footer: {
-                Text("Find your API key in Jellyseerr → Settings → General → API Key")
+                Text("Find your API key in Seerr → Settings → General → API Key")
                     .font(.caption)
             }
         case .jellyfinCredentials:
@@ -141,7 +143,7 @@ public struct SeerrSetupView: View {
             } header: {
                 Text("Jellyfin Credentials")
             } footer: {
-                Text("Sign in to Jellyseerr using your Jellyfin username and password. Future tvOS profiles will reuse their own Jellyfin credentials automatically.")
+                Text("Sign in to Seerr using your Jellyfin username and password. Future tvOS profiles will reuse their own Jellyfin credentials automatically.")
                     .font(.caption)
             }
         case .localAccount:
@@ -155,9 +157,9 @@ public struct SeerrSetupView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
             } header: {
-                Text("Local Jellyseerr Account")
+                Text("Local Seerr Account")
             } footer: {
-                Text("Sign in with a local Jellyseerr account (email + password) independent from Jellyfin.")
+                Text("Sign in with a local Seerr account (email + password) independent from Jellyfin.")
                     .font(.caption)
             }
         }
@@ -183,7 +185,7 @@ public struct SeerrSetupView: View {
 
         do {
             let server = SeerrServer(
-                name: displayName.isEmpty ? (url.host ?? "Jellyseerr") : displayName,
+                name: displayName.isEmpty ? (url.host ?? "Seerr") : displayName,
                 baseURL: url
             )
 
@@ -192,7 +194,7 @@ public struct SeerrSetupView: View {
                 let user = try await seerrAPI.testConnection(baseURL: url, apiKey: apiKey)
                 try appState.addSeerrServer(server, apiKey: apiKey)
                 let who = user.displayName ?? user.username ?? user.email ?? "Connected"
-                successMessage = "Signed in to Jellyseerr as \(who)"
+                successMessage = "Signed in to Seerr as \(who)"
 
             case .jellyfinCredentials:
                 let cookie = try await seerrAPI.authenticateWithJellyfin(
@@ -203,7 +205,7 @@ public struct SeerrSetupView: View {
                 try appState.addSeerrServer(server, sessionCookie: cookie, authMode: .jellyfinCredentials)
                 let user = try await seerrAPI.verifySession(baseURL: url, sessionCookie: cookie)
                 let who = user.displayName ?? user.username ?? user.email ?? username
-                successMessage = "Signed in to Jellyseerr as \(who)"
+                successMessage = "Signed in to Seerr as \(who)"
 
             case .localAccount:
                 let cookie = try await seerrAPI.authenticateWithLocalAccount(
@@ -214,7 +216,7 @@ public struct SeerrSetupView: View {
                 try appState.addSeerrServer(server, sessionCookie: cookie, authMode: .localAccount)
                 let user = try await seerrAPI.verifySession(baseURL: url, sessionCookie: cookie)
                 let who = user.displayName ?? user.username ?? user.email ?? username
-                successMessage = "Signed in to Jellyseerr as \(who)"
+                successMessage = "Signed in to Seerr as \(who)"
             }
 
             try? await Task.sleep(nanoseconds: 800_000_000)

@@ -4,7 +4,7 @@
 
 import Foundation
 
-/// Thread-safe Jellyseerr/Overseerr API client.
+/// Thread-safe Seerr API client.
 ///
 /// Auth modes:
 ///   - API key   → pass via X-Api-Key header (device-wide, shared Keychain)
@@ -109,7 +109,7 @@ public actor SeerrAPIClient {
         if let cookie = candidate, !cookie.value.isEmpty {
             return "\(cookie.name)=\(cookie.value)"
         }
-        throw NetworkError.custom("Jellyseerr did not return a session cookie. Check your credentials.")
+        throw NetworkError.custom("Seerr did not return a session cookie. Check your credentials.")
     }
 
     // MARK: - SeerrServer convenience overloads

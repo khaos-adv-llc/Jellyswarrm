@@ -52,6 +52,8 @@ public struct MediaCardView: View {
         #endif
     }
 
+    @State private var imageLoaded = false
+
     private var posterImage: some View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: imageURL) { phase in
@@ -60,18 +62,19 @@ public struct MediaCardView: View {
                     image
                         .resizable()
                         .aspectRatio(2 / 3, contentMode: .fill)
+                        .opacity(imageLoaded ? 1 : 0)
+                        .onAppear {
+                            withAnimation(.easeIn(duration: 0.3)) { imageLoaded = true }
+                        }
                 case .failure:
                     placeholderView
                 case .empty:
-                    placeholderView.overlay {
-                        ProgressView().tint(.white)
-                    }
+                    placeholderView
                 @unknown default:
                     placeholderView
                 }
             }
-            .frame(width: cardWidth, height: cardHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .posterCard(width: cardWidth, cornerRadius: 12)
 
             // Progress bar overlay
             if let userData = item.userData, userData.hasProgress {
@@ -114,11 +117,17 @@ public struct MediaCardView: View {
 
     private var placeholderView: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.2))
+            .fill(
+                LinearGradient(
+                    colors: [Color(white: 0.15), Color(white: 0.10)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .frame(width: cardWidth, height: cardHeight)
             .overlay {
                 Image(systemName: "film")
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(.white.opacity(0.25))
                     .font(.largeTitle)
             }
     }
@@ -176,14 +185,19 @@ public struct SeerrMediaCardView: View {
                             .aspectRatio(2 / 3, contentMode: .fill)
                     default:
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.2))
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(white: 0.15), Color(white: 0.10)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                             .overlay {
-                                Image(systemName: "film").foregroundStyle(.white.opacity(0.3)).font(.largeTitle)
+                                Image(systemName: "film").foregroundStyle(.white.opacity(0.25)).font(.largeTitle)
                             }
                     }
                 }
-                .frame(width: cardWidth, height: cardHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .posterCard(width: cardWidth, cornerRadius: 12)
 
                 statusBadge
                     .padding(8)

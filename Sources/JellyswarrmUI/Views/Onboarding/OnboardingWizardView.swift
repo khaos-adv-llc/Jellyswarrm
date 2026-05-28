@@ -3,7 +3,7 @@
 // Jellyswarrm — GPL v3 with App Store exception
 //
 // Multi-step onboarding wizard covering Jellyfin server setup, sign-in,
-// and optional Jellyseerr connection. Used on first launch and on tvOS
+// and optional Seerr connection. Used on first launch and on tvOS
 // when a new system user picks "set up a new server".
 
 import JellyswarrmCore
@@ -73,6 +73,7 @@ public struct OnboardingWizardView: View {
             }
         }
         .task {
+            appState.isOnboarding = true
             if let url = initialServerURL {
                 serverURL = url.absoluteString
                 step = .serverURL
@@ -147,7 +148,10 @@ public struct OnboardingWizardView: View {
                 connect: connectSeerrJellyfin
             )
         case .done:
-            DoneStep(start: { dismiss() })
+            DoneStep(start: {
+                appState.completeOnboarding()
+                dismiss()
+            })
         }
     }
 
@@ -250,7 +254,7 @@ public struct OnboardingWizardView: View {
     private func verifySeerrURL() async {
         errorMessage = nil
         guard let url = URL.normalizeJellyfinURL(seerrURL) else {
-            errorMessage = "Invalid Jellyseerr URL."
+            errorMessage = "Invalid Seerr URL."
             return
         }
         verifiedSeerrURL = url
@@ -266,7 +270,7 @@ public struct OnboardingWizardView: View {
         isWorking = true
         defer { isWorking = false }
 
-        let server = SeerrServer(name: url.host ?? "Jellyseerr", baseURL: url)
+        let server = SeerrServer(name: url.host ?? "Seerr", baseURL: url)
         do {
             switch seerrAuthMode {
             case .apiKey:
@@ -470,10 +474,10 @@ private struct SeerrPromptStep: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Text("Do you use Jellyseerr?")
+            Text("Do you use Seerr?")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            Text("Jellyseerr lets you request movies and shows")
+            Text("Seerr lets you request movies and shows")
                 .font(.title3)
                 .foregroundStyle(.white.opacity(0.7))
 
@@ -509,7 +513,7 @@ private struct SeerrURLStep: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Text("Your Jellyseerr Server")
+            Text("Your Seerr Server")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
@@ -629,7 +633,7 @@ private struct SeerrAPIKeyStep: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Text(mode == .apiKey ? "API Key" : "Sign in to Jellyseerr")
+            Text(mode == .apiKey ? "API Key" : "Sign in to Seerr")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 

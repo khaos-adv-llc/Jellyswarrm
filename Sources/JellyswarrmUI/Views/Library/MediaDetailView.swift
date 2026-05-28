@@ -60,7 +60,7 @@ public struct MediaDetailView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        #if !os(tvOS)
+        #if !os(tvOS) && !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
@@ -296,9 +296,7 @@ public struct MediaDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Overview")
                 .font(.headline)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            ExpandableText(text, font: .callout)
         }
     }
 

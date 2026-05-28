@@ -92,8 +92,10 @@ public struct ServerSetupView: View {
                 }
             }
             .navigationTitle("Add Server")
-            #if !os(tvOS)
+            #if !os(tvOS) && !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if !os(tvOS)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
