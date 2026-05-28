@@ -82,6 +82,9 @@ public struct MainTabView: View {
                 .environment(discoverVM)
                 .environment(searchVM)
         }
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
+        .tint(.white)
         .environment(libraryVM)
         .environment(discoverVM)
         .environment(searchVM)
@@ -146,6 +149,7 @@ public struct MainTabView: View {
             } detail: {
                 macOSDetail
                     .frame(minWidth: 600, minHeight: 400)
+                    .background(AppleTVTheme.background.ignoresSafeArea())
             }
             .environment(libraryVM)
             .environment(discoverVM)

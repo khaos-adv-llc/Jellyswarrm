@@ -14,11 +14,11 @@ public struct HomeView: View {
     public var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
+                LazyVStack(alignment: .leading, spacing: AppleTVTheme.shelfSpacing) {
                     if libraryVM.isLoading {
                         loadingSkeleton
                     } else {
-                        // Hero featured item
+                        // Hero featured item — full-bleed banner
                         if let featured = libraryVM.continueWatching.first ?? libraryVM.nextUp.first {
                             NavigationLink(value: featured) {
                                 HeroHeaderView(
@@ -31,19 +31,17 @@ public struct HomeView: View {
 
                         // Continue Watching
                         if !libraryVM.continueWatching.isEmpty {
-                            mediaRow(
+                            shelf(
                                 title: "Continue Watching",
-                                items: libraryVM.continueWatching,
-                                cardWidth: cardWidth
+                                items: libraryVM.continueWatching
                             )
                         }
 
                         // Next Up
                         if !libraryVM.nextUp.isEmpty {
-                            mediaRow(
+                            shelf(
                                 title: "Next Up",
-                                items: libraryVM.nextUp,
-                                cardWidth: cardWidth
+                                items: libraryVM.nextUp
                             )
                         }
 
@@ -51,17 +49,17 @@ public struct HomeView: View {
                         ForEach(libraryVM.sections) { section in
                             let items = libraryVM.recentlyAdded[section.id] ?? []
                             if !items.isEmpty {
-                                mediaRow(
+                                shelf(
                                     title: "Recently Added — \(section.name)",
-                                    items: items,
-                                    cardWidth: cardWidth
+                                    items: items
                                 )
                             }
                         }
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 32)
             }
+            .background(AppleTVTheme.background.ignoresSafeArea())
             .navigationTitle("Home")
             .refreshable {
                 await libraryVM.refresh()
@@ -75,49 +73,43 @@ public struct HomeView: View {
 
     // MARK: - Components
 
-    private func mediaRow(title: String, items: [MediaItem], cardWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .padding(.horizontal, horizontalPadding)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            MediaCardView(
-                                item: item,
-                                imageURL: libraryVM.posterImageURL(for: item, maxWidth: Int(cardWidth * 2)),
-                                cardWidth: cardWidth
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, horizontalPadding)
+    private func shelf(title: String, items: [MediaItem]) -> some View {
+        ShelfRowView(title: title, items: items) { item in
+            NavigationLink(value: item) {
+                MediaCardView(
+                    item: item,
+                    imageURL: libraryVM.posterImageURL(for: item, maxWidth: Int(cardWidth * 2)),
+                    cardWidth: cardWidth
+                )
             }
+            .buttonStyle(.plain)
         }
     }
 
     private var loadingSkeleton: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: AppleTVTheme.shelfSpacing) {
+            // Placeholder hero
+            RoundedRectangle(cornerRadius: 0)
+                .fill(Color.white.opacity(0.05))
+                .aspectRatio(16.0 / 7.0, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+
             ForEach(0 ..< 3, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: 12) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 160, height: 20)
-                        .padding(.horizontal, horizontalPadding)
+                    Text("Loading Shelf Title")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
 
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: AppleTVTheme.cardSpacing) {
                             ForEach(0 ..< 6, id: \.self) { _ in
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.gray.opacity(0.15))
+                                    .fill(Color.white.opacity(0.07))
                                     .frame(width: cardWidth, height: cardWidth * 1.5)
                             }
                         }
-                        .padding(.horizontal, horizontalPadding)
+                        .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
                     }
                 }
             }
@@ -143,15 +135,7 @@ public struct HomeView: View {
         #if os(tvOS)
             return 240
         #else
-            return 130
-        #endif
-    }
-
-    private var horizontalPadding: CGFloat {
-        #if os(tvOS)
-            return 60
-        #else
-            return 16
+            return 140
         #endif
     }
 }
@@ -167,6 +151,10 @@ public struct HeroHeaderView: View {
         self.imageURL = imageURL
     }
 
+    #if os(iOS)
+        @Environment(\.horizontalSizeClass) private var hSizeClass
+    #endif
+
     public var body: some View {
         ZStack(alignment: .bottomLeading) {
             AsyncImage(url: imageURL) { phase in
@@ -177,23 +165,27 @@ public struct HeroHeaderView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: heroHeight)
                         .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [.black, .black.opacity(0.7), .clear],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
                 default:
                     Rectangle()
-                        .fill(Color(white: 0.1))
+                        .fill(Color.white.opacity(0.05))
                         .frame(maxWidth: .infinity)
                         .frame(height: heroHeight)
                 }
             }
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        AppleTVTheme.background.opacity(0.4),
+                        AppleTVTheme.background,
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
             // Metadata — constrained to screen width so description can't overflow
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 if let rating = item.communityRating {
                     Label(String(format: "%.1f", rating), systemImage: "star.fill")
                         .font(.caption)
@@ -201,24 +193,24 @@ public struct HeroHeaderView: View {
                 }
 
                 Text(item.name)
-                    .font(.title2)
+                    .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
-                    .shadow(radius: 4)
+                    .shadow(radius: 6)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let overview = item.overview, !overview.isEmpty {
                     Text(overview)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.85))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.horizontal, heroPadding)
-            .padding(.bottom, 20)
+            .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
+            .padding(.bottom, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
@@ -226,17 +218,15 @@ public struct HeroHeaderView: View {
 
     private var heroHeight: CGFloat {
         #if os(tvOS)
-            return 480
+            return 540
+        #elseif os(macOS)
+            return 400
         #else
-            return 280
-        #endif
-    }
-
-    private var heroPadding: CGFloat {
-        #if os(tvOS)
-            return 60
-        #else
-            return 16
+            // iPad regular = taller, iPhone compact = shorter
+            if hSizeClass == .regular {
+                return 380
+            }
+            return 320
         #endif
     }
 }

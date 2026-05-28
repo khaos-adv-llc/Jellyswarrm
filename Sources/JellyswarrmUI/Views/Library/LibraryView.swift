@@ -12,7 +12,7 @@ public struct LibraryView: View {
     @Environment(AppState.self) private var appState
 
     private let columns = [
-        GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16),
+        GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 20),
     ]
 
     public var body: some View {
@@ -20,6 +20,8 @@ public struct LibraryView: View {
             Group {
                 if libraryVM.isLoading, libraryVM.sections.isEmpty {
                     ProgressView("Loading library...")
+                        .tint(.white)
+                        .foregroundStyle(.white.opacity(0.8))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if libraryVM.sections.isEmpty {
                     ContentUnavailableView(
@@ -29,7 +31,7 @@ public struct LibraryView: View {
                     )
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 20) {
+                        LazyVGrid(columns: columns, spacing: 24) {
                             ForEach(libraryVM.sections) { section in
                                 NavigationLink(destination: LibrarySectionView(section: section)) {
                                     librarySectionCard(section)
@@ -37,10 +39,11 @@ public struct LibraryView: View {
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding()
+                        .padding(gridPadding)
                     }
                 }
             }
+            .background(AppleTVTheme.background.ignoresSafeArea())
             .navigationTitle("Library")
             .refreshable {
                 await libraryVM.refresh()
@@ -52,36 +55,48 @@ public struct LibraryView: View {
         }
     }
 
+    private var gridPadding: CGFloat {
+        #if os(tvOS)
+            return 60
+        #elseif os(macOS)
+            return 32
+        #else
+            return 20
+        #endif
+    }
+
     private func librarySectionCard(_ section: LibrarySection) -> some View {
         VStack(spacing: 0) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.gray.opacity(0.15))
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white.opacity(0.07))
                     .aspectRatio(16 / 9, contentMode: .fit)
 
                 Image(systemName: section.collectionType?.systemImageName ?? "folder")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(.white.opacity(0.7))
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(section.name)
-                    .font(.subheadline)
+                    .font(.headline)
                     .fontWeight(.semibold)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
 
                 if let count = section.childCount {
                     Text("\(count) items")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.6))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
         }
-        .background(Color.gray.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background(Color.white.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
     }
 }
 
@@ -103,9 +118,27 @@ public struct LibrarySectionView: View {
     @State private var sortOrder = "Ascending"
 
     private let pageSize = 50
-    private let cardWidth: CGFloat = 130
+
+    private var cardWidth: CGFloat {
+        #if os(tvOS)
+            return 220
+        #else
+            return 140
+        #endif
+    }
+
+    private var hPad: CGFloat {
+        #if os(tvOS)
+            return 60
+        #elseif os(macOS)
+            return 32
+        #else
+            return 20
+        #endif
+    }
+
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 12, alignment: .top)]
+        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 16, alignment: .top)]
     }
 
     private var itemNoun: String {
@@ -120,20 +153,22 @@ public struct LibrarySectionView: View {
     public var body: some View {
         ScrollView {
             if isLoading, items.isEmpty {
-                ProgressView().padding(.top, 80)
+                ProgressView()
+                    .tint(.white)
+                    .padding(.top, 80)
             } else {
                 if totalCount > 0 {
                     HStack {
                         Text("\(totalCount) \(itemNoun)")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                         Spacer()
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    .padding(.horizontal, hPad)
+                    .padding(.top, 12)
                 }
-                LazyVGrid(columns: columns, alignment: .center, spacing: 16) {
+                LazyVGrid(columns: columns, alignment: .center, spacing: 20) {
                     ForEach(items) { item in
                         NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
                             MediaCardView(
@@ -152,20 +187,24 @@ public struct LibrarySectionView: View {
                     }
 
                     if isLoading, !items.isEmpty {
-                        ProgressView().gridCellColumns(columns.count)
+                        ProgressView()
+                            .tint(.white)
+                            .gridCellColumns(columns.count)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.horizontal, hPad)
+                .padding(.vertical, 16)
 
                 if !isLoading, totalCount > 0 {
                     Text("\(items.count) of \(totalCount) \(itemNoun)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.bottom, 24)
                 }
             }
         }
+        .background(AppleTVTheme.background.ignoresSafeArea())
         .navigationTitle(section.name)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
