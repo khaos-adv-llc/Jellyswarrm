@@ -132,6 +132,49 @@ public final class PlayerViewModel {
                 print("[Player] Audio codec '\(audioCodec)' — will HLS-transcode to H.264+AAC (TS)")
             }
 
+            durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
+
+            // Resolve resume position BEFORE building the playback URL so the
+            // HLS transcode URL can include StartTimeTicks. AVPlayer cannot
+            // reliably seek mid-HLS (caused segment-124 jumps in the past) —
+            // instead we ask Jellyfin to generate a playlist that begins at
+            // the resume point, and the AVPlayer plays from its timeline 0.
+            if startFromBeginning {
+                positionTicks = 0
+                print("[Resume] Caller requested start from beginning")
+            } else {
+                // Priority 1: local UserDefaults backup. Updated every 10s by
+                // the player's periodic time observer, so it's always at least
+                // as fresh as the server (which only updates on Stop reports
+                // — and a Stop from a just-dismissed session races with this
+                // new load).
+                let key = "resume_\(item.id)"
+                let localRaw = UserDefaults.standard.double(forKey: key)
+                print("[Resume] Reading key: \(key), raw value: \(localRaw)")
+                let localTicks = Int64(localRaw)
+
+                if localTicks > 0 {
+                    positionTicks = localTicks
+                    print("[Resume] Local position: \(localTicks) ticks for \(item.id)")
+                } else {
+                    // Priority 2: server UserData (cross-device fallback).
+                    do {
+                        let serverTicks = try await sdk.resumeTicks(
+                            server: server, token: token, itemId: item.id
+                        )
+                        if serverTicks > 0 {
+                            positionTicks = serverTicks
+                            print("[Resume] Server UserData position (SDK): \(positionTicks) ticks for \(item.id)")
+                        } else {
+                            print("[Resume] No saved position — starting from beginning")
+                        }
+                    } catch {
+                        print("[Resume] SDK resumeTicks failed: \(error.localizedDescription) — starting from beginning")
+                    }
+                }
+                print("[Resume] Starting from: \(positionTicks) ticks")
+            }
+
             if !audioIsCompatible {
                 // Incompatible audio (Opus, EAC3, TrueHD, DTS, FLAC) — transcode
                 // through Jellyfin's HLS endpoint using MPEG-TS segments with
@@ -142,7 +185,8 @@ public final class PlayerViewModel {
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
                     server: server,
-                    token: token
+                    token: token,
+                    startTimeTicks: positionTicks
                 )
                 // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD).
                 // Must await start() to avoid race where proxyURL() is called before
@@ -176,39 +220,6 @@ public final class PlayerViewModel {
             } else {
                 print("[Player] ERROR: no playback path available")
                 throw NetworkError.emptyResponse
-            }
-
-            durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
-
-            // Resume from last position unless caller asked to restart, or
-            // we're using HLS transcode. AVPlayer was jumping to segment 124
-            // (~6 min) on HLS due to a stale resume timestamp — always start
-            // from the beginning on a fresh transcode for now.
-            if startFromBeginning || isHLSTranscode {
-                positionTicks = 0
-            } else {
-                // Priority 1: local UserDefaults backup. Updated every 10s by
-                // the player's periodic time observer, so it's always at least
-                // as fresh as the server (which only updates on Stop reports
-                // — and a Stop from a just-dismissed session races with this
-                // new load).
-                let key = "resume_\(item.id)"
-                let localRaw = UserDefaults.standard.double(forKey: key)
-                print("[Resume] Reading key: \(key), raw value: \(localRaw)")
-                let localTicks = Int64(localRaw)
-
-                if localTicks > 0 {
-                    positionTicks = localTicks
-                    print("[Resume] Local position: \(localTicks) ticks for \(item.id)")
-                } else if let serverTicks = try? await sdk.resumeTicks(
-                    server: server, token: token, itemId: item.id
-                ), serverTicks > 0 {
-                    // Priority 2: server UserData (cross-device fallback). MIGRATED TO SDK.
-                    positionTicks = serverTicks
-                    print("[Resume] Server UserData position (SDK): \(positionTicks) ticks for \(item.id)")
-                } else {
-                    print("[Resume] No saved position — starting from beginning")
-                }
             }
 
             // NOTE: reportPlaybackStart is intentionally deferred until the
@@ -441,7 +452,8 @@ public final class PlayerViewModel {
         source: MediaSource,
         audioStreamIndex: Int,
         server: JellyfinServer,
-        token: String
+        token: String,
+        startTimeTicks: Int64
     ) -> URL? {
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
@@ -460,6 +472,12 @@ public final class PlayerViewModel {
             URLQueryItem(name: "TranscodingMaxAudioChannels", value: "2"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
         ]
+        if startTimeTicks > 0 {
+            // Jellyfin generates the m3u8 starting from this tick offset, so
+            // segment 0 IS the resume position. The AVPlayer must NOT seek
+            // afterward — its timeline 0 is already correct.
+            items.append(URLQueryItem(name: "StartTimeTicks", value: "\(startTimeTicks)"))
+        }
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         items.append(URLQueryItem(name: "api_key", value: token))
         components.queryItems = items
