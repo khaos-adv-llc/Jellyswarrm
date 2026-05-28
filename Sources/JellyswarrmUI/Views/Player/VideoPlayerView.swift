@@ -14,6 +14,7 @@ public struct VideoPlayerView: View {
 
     @State private var playerVM: PlayerViewModel
     @State private var player: AVPlayer?
+    @State private var controlsVisible: Bool = false
 
     public init(item: MediaItem, startFromBeginning: Bool = false) {
         self.item = item
@@ -30,11 +31,15 @@ public struct VideoPlayerView: View {
                 // - Correctly renders HDR / Dolby Vision colour
                 // - Provides built-in transport controls + dismiss button
                 // - Supports Picture-in-Picture and AirPlay out of the box
-                SystemPlayerView(player: player, onDismiss: { dismiss() })
-                    .ignoresSafeArea()
+                SystemPlayerView(
+                    player: player,
+                    onDismiss: { dismiss() },
+                    onControlsVisibilityChange: { visible in controlsVisible = visible }
+                )
+                .ignoresSafeArea()
 
                 #if os(iOS)
-                if let chapterName = playerVM.currentChapterName {
+                if controlsVisible, let chapterName = playerVM.currentChapterName {
                     VStack {
                         Spacer()
                         Text(chapterName)
@@ -120,6 +125,7 @@ public struct VideoPlayerView: View {
     struct SystemPlayerView: NSViewRepresentable {
         let player: AVPlayer
         let onDismiss: () -> Void
+        var onControlsVisibilityChange: ((Bool) -> Void)? = nil
 
         func makeNSView(context _: Context) -> AVPlayerView {
             let view = AVPlayerView()
@@ -142,6 +148,7 @@ public struct VideoPlayerView: View {
     struct SystemPlayerView: UIViewControllerRepresentable {
         let player: AVPlayer
         let onDismiss: () -> Void
+        var onControlsVisibilityChange: ((Bool) -> Void)? = nil
 
         func makeUIViewController(context: Context) -> AVPlayerViewController {
             let playerVC = AVPlayerViewController()
@@ -181,27 +188,35 @@ public struct VideoPlayerView: View {
         }
 
         func makeCoordinator() -> Coordinator {
-            Coordinator(onDismiss: onDismiss)
+            Coordinator(onDismiss: onDismiss, onControlsVisibilityChange: onControlsVisibilityChange)
         }
 
         final class Coordinator: NSObject, AVPlayerViewControllerDelegate, UIGestureRecognizerDelegate {
             let onDismiss: () -> Void
+            let onControlsVisibilityChange: ((Bool) -> Void)?
             weak var playerVC: AVPlayerViewController?
             private var hideTask: Task<Void, Never>?
 
-            init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
+            init(onDismiss: @escaping () -> Void, onControlsVisibilityChange: ((Bool) -> Void)? = nil) {
+                self.onDismiss = onDismiss
+                self.onControlsVisibilityChange = onControlsVisibilityChange
+            }
 
             #if os(iOS)
                 @objc func handleTap() {
                     guard let playerVC else { return }
                     let willShow = !playerVC.showsPlaybackControls
                     playerVC.showsPlaybackControls = willShow
+                    onControlsVisibilityChange?(willShow)
                     hideTask?.cancel()
                     if willShow {
                         hideTask = Task { [weak self] in
                             try? await Task.sleep(for: .seconds(3))
                             guard !Task.isCancelled else { return }
-                            await MainActor.run { self?.playerVC?.showsPlaybackControls = false }
+                            await MainActor.run {
+                                self?.playerVC?.showsPlaybackControls = false
+                                self?.onControlsVisibilityChange?(false)
+                            }
                         }
                     }
                 }
