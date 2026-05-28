@@ -13,18 +13,15 @@ public struct VideoPlayerView: View {
     @Environment(\.dismiss) private var dismiss
 
     // Optional + lazy-initialized in .onAppear so we never construct a dummy
-    // PlayerViewModel against a throwaway AppState. The earlier design
-    // mutated @State inside .task (assigning the real VM + setting a bound
-    // flag), which re-rendered the view and could re-fire .onAppear on the
-    // Color.clear block, presenting a second AVPlayerViewController and
-    // tripping iOS -12860 when the first was torn down.
+    // PlayerViewModel against a throwaway AppState. iOS presents
+    // AVPlayerViewController directly from .task via MainActor.run rather
+    // than routing through a Color.clear.onAppear block — the onAppear
+    // indirection caused a double presentation that tripped iOS -12860 when
+    // SwiftUI re-rendered after `player` was assigned.
     @State private var playerVM: PlayerViewModel?
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
-    #if os(iOS)
-    @State private var didPresent: Bool = false
-    #endif
 
     public init(item: MediaItem, startFromBeginning: Bool = false) {
         self.item = item
@@ -37,17 +34,11 @@ public struct VideoPlayerView: View {
 
             if let player {
                 #if os(iOS)
-                // On iOS 26 beta, AVPlayerViewController hosted inside SwiftUI's
-                // fullScreenCover via UIViewControllerRepresentable never gets a
-                // Metal render surface (readyForDisplay stays false → black
-                // video, audio only). Present AVPlayerViewController directly
-                // via UIKit instead so AVPlayerLayer gets a real UIWindow.
+                // On iOS, AVPlayerViewController is presented directly via
+                // UIKit from .task (see presentAVPlayerViewController). The
+                // @State `player` is retained solely so onDisappear can tear
+                // down the AVPlayer; the body itself renders nothing for it.
                 Color.clear
-                    .onAppear {
-                        guard !didPresent else { return }
-                        didPresent = true
-                        presentAVPlayerViewController(player: player)
-                    }
                 #else
                 SystemPlayerView(
                     player: player,
@@ -84,12 +75,9 @@ public struct VideoPlayerView: View {
         }
         .onAppear {
             // Bind the VM to the real AppState exactly once, synchronously,
-            // before .task runs. Doing this inside .task would mutate @State
-            // mid-async, re-rendering the view and re-firing the Color.clear
-            // .onAppear that presents AVPlayerViewController — producing a
-            // second player and iOS error -12860 when the first is torn
-            // down. onAppear fires once per view identity and finishes before
-            // .task begins, so playerVM is non-nil by the time .task reads it.
+            // before .task runs. onAppear fires once per view identity and
+            // finishes before .task begins, so playerVM is non-nil by the
+            // time .task reads it.
             if playerVM == nil {
                 playerVM = PlayerViewModel(appState: appState)
             }
@@ -113,7 +101,7 @@ public struct VideoPlayerView: View {
             avPlayer.automaticallyWaitsToMinimizeStalling = false
 
             // Observe AVPlayerItem status for diagnostics
-            let observation = playerItem.observe(\.status, options: [.new]) { item, _ in
+            let statusObservation = playerItem.observe(\.status, options: [.new]) { item, _ in
                 switch item.status {
                 case .failed:
                     let err = item.error
@@ -129,7 +117,6 @@ public struct VideoPlayerView: View {
                     break
                 }
             }
-            _ = observation
 
             // Also observe timeControlStatus for the prohibited-icon diagnosis
             let tcObservation = avPlayer.observe(\.timeControlStatus, options: [.new]) { p, _ in
@@ -144,15 +131,33 @@ public struct VideoPlayerView: View {
                     break
                 }
             }
-            _ = tcObservation
 
-            player = avPlayer
             #if os(iOS)
             // On iOS, seek + play are deferred to isReadyForDisplay (see
             // presentAVPlayerViewController). Seeking before the layer is
             // attached to a real window causes AVPlayerViewController to
             // reset position to 0 once it mounts.
+            //
+            // Present AVPlayerViewController directly from here on the main
+            // actor, BEFORE assigning @State player. Routing presentation
+            // through Color.clear.onAppear caused a double presentation: the
+            // @State assignment re-rendered the body, the newly-inserted
+            // Color.clear subtree's onAppear fired, and SwiftUI's view-identity
+            // semantics could fire it twice — producing a second
+            // AVPlayerViewController that killed the first with iOS -12860.
+            await MainActor.run {
+                presentAVPlayerViewController(
+                    player: avPlayer,
+                    vm: vm,
+                    statusObservation: statusObservation,
+                    tcObservation: tcObservation
+                )
+            }
+            player = avPlayer
             #else
+            _ = statusObservation
+            _ = tcObservation
+            player = avPlayer
             // Seek-based resume for both direct-stream and HLS transcode.
             // Passing StartTimeTicks to Jellyfin breaks AVFoundation playback
             // (first .ts segment lacks a keyframe at PTS 0); transcoding from
@@ -231,7 +236,12 @@ public struct VideoPlayerView: View {
     }
 
     #if os(iOS)
-    private func presentAVPlayerViewController(player: AVPlayer) {
+    private func presentAVPlayerViewController(
+        player: AVPlayer,
+        vm: PlayerViewModel,
+        statusObservation: NSKeyValueObservation,
+        tcObservation: NSKeyValueObservation
+    ) {
         print("[Player] UIKit-presenting AVPlayerViewController, player=\(player), item=\(String(describing: player.currentItem))")
 
         let playerVC = DismissAwareAVPlayerViewController()
@@ -245,14 +255,12 @@ public struct VideoPlayerView: View {
         playerVC.exitsFullScreenWhenPlaybackEnds = true
         playerVC.onDismissed = { dismiss() }
         playerVC.itemId = item.id
-        // playerVM is guaranteed non-nil here: .onAppear sets it before
-        // .task, .task sets `player` only after a successful load, and the
-        // Color.clear .onAppear that calls this method only fires once
-        // `player` is non-nil.
-        guard let vm = playerVM else {
-            print("[Player] ERROR: presentAVPlayerViewController invoked with nil playerVM")
-            return
-        }
+        // Retain the diagnostic KVO tokens for the session — without this
+        // they deinit immediately after .task returns, which can interfere
+        // with AVPlayerItem/AVPlayer internal state. viewDidDisappear nils
+        // them at teardown.
+        playerVC.statusObservation = statusObservation
+        playerVC.tcObservation = tcObservation
         playerVC.resumeSeconds = vm.positionTicks.ticksToSeconds
         // Both direct-stream and HLS-transcode resume by seeking the local
         // AVPlayer after isReadyForDisplay fires. Passing StartTimeTicks to
@@ -379,6 +387,8 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
     var onDismissed: (() -> Void)?
     var readyObservation: NSKeyValueObservation?
     var seekStatusObservation: NSKeyValueObservation?
+    var statusObservation: NSKeyValueObservation?
+    var tcObservation: NSKeyValueObservation?
     var wasSeekingOrWaiting: Bool = false
     var resumeSeconds: Double = 0
     var shouldSeekForResume: Bool = true
@@ -392,6 +402,8 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
                 player?.removeTimeObserver(token)
                 timeObserver = nil
             }
+            statusObservation = nil
+            tcObservation = nil
             onDismissed?()
             onDismissed = nil
         }
