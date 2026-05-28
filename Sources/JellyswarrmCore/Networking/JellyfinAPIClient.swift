@@ -258,10 +258,14 @@ public actor JellyfinAPIClient {
         if let audioStreamIndex { body["AudioStreamIndex"] = audioStreamIndex }
         if let subtitleStreamIndex { body["SubtitleStreamIndex"] = subtitleStreamIndex }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        // DEBUG: log raw response so we can inspect stream URLs
+        // DEBUG: log raw response so we can inspect stream URLs. The first
+        // call (no mediaSourceId) discovers available sources; the second
+        // resolves stream URLs for a chosen source. Tag each so the double
+        // log is readable.
         let raw = try await rawPerform(request: request)
         if let json = String(data: raw, encoding: .utf8) {
-            print("[PlaybackInfo raw] \(json.prefix(2000))")
+            let tag = mediaSourceId == nil ? "[PlaybackInfo sources]" : "[PlaybackInfo raw]"
+            print("\(tag) \(json.prefix(2000))")
         }
         return try decoder.decode(PlaybackInfo.self, from: raw)
     }

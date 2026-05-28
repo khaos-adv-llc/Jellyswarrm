@@ -12,11 +12,16 @@ public struct VideoPlayerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    @State private var playerVM: PlayerViewModel
+    // Optional + lazy-initialized in .onAppear so we never construct a dummy
+    // PlayerViewModel against a throwaway AppState. The earlier design
+    // mutated @State inside .task (assigning the real VM + setting a bound
+    // flag), which re-rendered the view and could re-fire .onAppear on the
+    // Color.clear block, presenting a second AVPlayerViewController and
+    // tripping iOS -12860 when the first was torn down.
+    @State private var playerVM: PlayerViewModel?
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
-    @State private var vmBound: Bool = false
     #if os(iOS)
     @State private var didPresent: Bool = false
     #endif
@@ -24,7 +29,6 @@ public struct VideoPlayerView: View {
     public init(item: MediaItem, startFromBeginning: Bool = false) {
         self.item = item
         self.startFromBeginning = startFromBeginning
-        _playerVM = State(initialValue: PlayerViewModel(appState: AppState()))
     }
 
     public var body: some View {
@@ -52,7 +56,7 @@ public struct VideoPlayerView: View {
                 )
                 .ignoresSafeArea()
                 #endif
-            } else if playerVM.isLoading {
+            } else if playerVM?.isLoading == true {
                 VStack(spacing: 16) {
                     ProgressView()
                         .tint(.white)
@@ -60,7 +64,7 @@ public struct VideoPlayerView: View {
                     Text("Loading...")
                         .foregroundStyle(.white.opacity(0.7))
                 }
-            } else if let error = playerVM.error {
+            } else if let error = playerVM?.error {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.largeTitle)
@@ -78,26 +82,20 @@ public struct VideoPlayerView: View {
                 .padding()
             }
         }
-        .task(id: item.id) {
-            // Use item.id as the task identity so SwiftUI only runs this once
-            // per item. Without this, mutating @State playerVM inside the task
-            // triggers a re-render which restarts the task, causing double
-            // PlaybackInfo calls and competing AVPlayer instances.
-            //
-            // Bind the VM to the real AppState exactly once. If the view is
-            // ever re-presented (e.g. fullScreenCover binding toggles, or two
-            // navigation pushes race), reuse the existing VM so its
-            // loadTask-based mutex can cancel the prior load. Creating a
-            // fresh VM each time would give each load-attempt its own task,
-            // defeating the protection.
-            let vm: PlayerViewModel
-            if vmBound {
-                vm = playerVM
-            } else {
-                vm = PlayerViewModel(appState: appState)
-                playerVM = vm
-                vmBound = true
+        .onAppear {
+            // Bind the VM to the real AppState exactly once, synchronously,
+            // before .task runs. Doing this inside .task would mutate @State
+            // mid-async, re-rendering the view and re-firing the Color.clear
+            // .onAppear that presents AVPlayerViewController — producing a
+            // second player and iOS error -12860 when the first is torn
+            // down. onAppear fires once per view identity and finishes before
+            // .task begins, so playerVM is non-nil by the time .task reads it.
+            if playerVM == nil {
+                playerVM = PlayerViewModel(appState: appState)
             }
+        }
+        .task(id: item.id) {
+            guard let vm = playerVM else { return }
             await vm.loadPlayback(for: item, startFromBeginning: startFromBeginning)
             guard let url = vm.playbackURL else {
                 print("[Player] ERROR: no playbackURL after loadPlayback")
@@ -205,7 +203,7 @@ public struct VideoPlayerView: View {
             }
         }
         .onDisappear {
-            playerVM.stopChapterObserver()
+            playerVM?.stopChapterObserver()
             // Remove the non-iOS periodic time observer so its closure stops
             // retaining the view model. iOS uses the observer stored on
             // DismissAwareAVPlayerViewController, which is removed in
@@ -214,7 +212,7 @@ public struct VideoPlayerView: View {
                 player?.removeTimeObserver(token)
                 timeObserverToken = nil
             }
-            let vm = playerVM
+            guard let vm = playerVM else { return }
             let outgoingPlayer = player
             // Nil the player item BEFORE proxy teardown so AVPlayer cancels
             // its in-flight segment fetches against the proxy. Without this,
@@ -247,14 +245,22 @@ public struct VideoPlayerView: View {
         playerVC.exitsFullScreenWhenPlaybackEnds = true
         playerVC.onDismissed = { dismiss() }
         playerVC.itemId = item.id
-        playerVC.resumeSeconds = playerVM.positionTicks.ticksToSeconds
+        // playerVM is guaranteed non-nil here: .onAppear sets it before
+        // .task, .task sets `player` only after a successful load, and the
+        // Color.clear .onAppear that calls this method only fires once
+        // `player` is non-nil.
+        guard let vm = playerVM else {
+            print("[Player] ERROR: presentAVPlayerViewController invoked with nil playerVM")
+            return
+        }
+        playerVC.resumeSeconds = vm.positionTicks.ticksToSeconds
         // Both direct-stream and HLS-transcode resume by seeking the local
         // AVPlayer after isReadyForDisplay fires. Passing StartTimeTicks to
         // Jellyfin causes the first .ts segment to lack a keyframe at PTS 0,
         // which AVFoundation rejects with the "Playback Prohibited" icon.
         playerVC.shouldSeekForResume = true
 
-        let vmRef = playerVM
+        let vmRef = vm
         let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
             print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
             guard change.newValue == true, let player = player else { return }
@@ -299,7 +305,7 @@ public struct VideoPlayerView: View {
         // position — no offset adjustment needed. Capture vm weakly so the
         // observer closure cannot keep the view model alive past view
         // teardown if the observer is somehow not removed.
-        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player, weak vm = playerVM] time in
+        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player, weak vm] time in
             guard let player = player,
                   let vc = playerVC,
                   let vm,
