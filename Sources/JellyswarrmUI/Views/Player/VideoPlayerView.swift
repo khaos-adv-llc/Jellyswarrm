@@ -120,8 +120,10 @@ public struct VideoPlayerView: View {
             playerVC.showsPlaybackControls = true
             playerVC.videoGravity = .resizeAspect
             playerVC.allowsPictureInPicturePlayback = true
-            playerVC.updatesNowPlayingInfoCenter = true
-            playerVC.entersFullScreenWhenPlaybackBegins = false
+            #if os(iOS)
+                playerVC.updatesNowPlayingInfoCenter = true
+                playerVC.entersFullScreenWhenPlaybackBegins = false
+            #endif
             playerVC.delegate = context.coordinator
 
             #if os(iOS)
