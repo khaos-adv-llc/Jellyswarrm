@@ -27,6 +27,8 @@ public struct VideoPlayerView: View {
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
+    @State private var useVLC: Bool = false
+    @State private var vlcURL: URL?
     #if os(macOS)
     @State private var showControls: Bool = false
     @State private var hideTask: Task<Void, Never>? = nil
@@ -72,6 +74,60 @@ public struct VideoPlayerView: View {
 
     @ViewBuilder
     private var bodyContent: some View {
+        if useVLC, let url = vlcURL {
+            vlcBody(url: url)
+        } else {
+            avFoundationBody
+        }
+    }
+
+    @ViewBuilder
+    private func vlcBody(url: URL) -> some View {
+        let resume = Float(playerVM?.progressFraction ?? 0)
+        #if canImport(VLCKit) && os(macOS)
+        VLCPlayerViewMac(url: url, startPosition: resume, onStopped: {
+            Task { @MainActor in
+                await playerVM?.stop()
+                performDismiss()
+            }
+        })
+        .ignoresSafeArea()
+        #elseif canImport(MobileVLCKit) && !os(macOS) && !os(tvOS)
+        VLCPlayerView(url: url, startPosition: resume, onStopped: {
+            Task { @MainActor in
+                await playerVM?.stop()
+                performDismiss()
+            }
+        })
+        .ignoresSafeArea()
+        #else
+        // VLC requested but package not present (or tvOS — VLC has no tvOS build).
+        // Show a clear message rather than silently falling back, so the user
+        // knows their preference couldn't be honored.
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.yellow)
+                Text("VLC Engine Unavailable")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("VLC playback is not built into this binary on this platform. Switch to AVFoundation in Settings → Playback.")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Button("Close") { performDismiss() }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var avFoundationBody: some View {
         #if os(tvOS)
         // tvOS: AVPlayerViewController must be the top-level view returned
         // from .fullScreenCover so UIKit gives it full-screen size and
@@ -206,8 +262,21 @@ public struct VideoPlayerView: View {
 
         // Detect HDR transfer function before constructing the player item
         // so the view layer can decide between the AVFoundation path and the
-        // Metal HDR renderer on non-iOS platforms.
+        // Metal HDR renderer on non-iOS platforms. Also resolves
+        // `vm.resolvedEngine` from the user's playback engine preference.
         await vm.detectHDR(asset: asset)
+
+        // VLC engine: skip AVFoundation entirely. tvOS has no VLC build, so
+        // fall back to AVFoundation there even if the resolver picked VLC.
+        #if !os(tvOS)
+        if vm.resolvedEngine == .vlc {
+            vlcURL = url
+            useVLC = true
+            await vm.notifyPlaybackStarted()
+            vm.isPlaying = true
+            return
+        }
+        #endif
 
         let playerItem = AVPlayerItem(asset: asset)
         playerItem.preferredForwardBufferDuration = 10

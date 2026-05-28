@@ -24,6 +24,12 @@ let package = Package(
         // package, taking JellyswarrmCore/JellyswarrmUI imports down with it on the
         // macOS app target. Re-add with a real version constraint in a follow-up PR.
         // .package(url: "https://github.com/kingslay/FFmpegKit", from: "6.0.0"),
+        // VLCKit-SPM: to verify — VLCKit does not officially ship as an SPM
+        // package. The community wrappers below tend to publish binary XCFrameworks
+        // for MobileVLCKit (iOS/tvOS) and VLCKit (macOS). Once a wrapper resolves
+        // cleanly in your environment, uncomment the package + product entries:
+        // .package(url: "https://github.com/Alex1989Wang/VLCKit-SPM", from: "3.6.0"),
+        // .package(url: "https://github.com/nickaroot/MobileVLCKit-SPM", exact: "3.6.0"),
     ],
     targets: [
         .target(

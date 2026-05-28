@@ -191,9 +191,32 @@ public struct PlaybackSettingsView: View {
     @AppStorage("preferDirectPlay") private var preferDirectPlay = true
     @AppStorage("maxBitrateMbps") private var maxBitrateMbps = 140
     @AppStorage("defaultSubtitleMode") private var defaultSubtitleMode = "off"
+    @AppStorage("playbackEngine") private var playbackEngineRaw = PlaybackEngine.auto.rawValue
+
+    private var playbackEngine: Binding<PlaybackEngine> {
+        Binding(
+            get: { PlaybackEngine(rawValue: playbackEngineRaw) ?? .auto },
+            set: { playbackEngineRaw = $0.rawValue }
+        )
+    }
 
     public var body: some View {
         Form {
+            Section("Playback Engine") {
+                Picker("Engine", selection: playbackEngine) {
+                    ForEach(PlaybackEngine.allCases, id: \.self) { engine in
+                        Text(engine.displayName).tag(engine)
+                    }
+                }
+                #if !os(tvOS)
+                .pickerStyle(.segmented)
+                #endif
+
+                Text(playbackEngine.wrappedValue.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Streaming") {
                 Toggle("Prefer Direct Play", isOn: $preferDirectPlay)
                 Picker("Max Bitrate", selection: $maxBitrateMbps) {

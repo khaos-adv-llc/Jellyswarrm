@@ -35,6 +35,22 @@ public final class PlayerViewModel {
     /// AVFoundation path (VideoToolbox handles DV Profile 5/8 natively).
     public var hdrFormat: HDRFormat = .sdr
 
+    /// Audio codec of the stream we're going to play (lowercased), used by
+    /// PlaybackEngineResolver to decide between AVFoundation and VLC.
+    public var audioCodec: String = ""
+
+    /// Container of the resolved source (e.g. "mkv", "mp4", "ts"), used by
+    /// PlaybackEngineResolver.
+    public var container: String = ""
+
+    /// Engine the view layer should use to play `playbackURL`. Set after
+    /// `loadPlayback` finishes and HDR detection has run.
+    public var resolvedEngine: PlaybackEngine = .avFoundation
+
+    /// The URL the player is currently configured to play — same value as
+    /// `playbackURL`, exposed for the VLC routing branch in VideoPlayerView.
+    public var currentPlaybackURL: URL? { playbackURL }
+
     // Task-based mutex for loadPlayback. A Bool guard is not race-free here:
     // SwiftUI can call .task twice in quick succession and both invocations
     // can pass an `await`-suspended guard before either sets the flag. Using
@@ -146,6 +162,8 @@ public final class PlayerViewModel {
                 ?? audioStreams.first(where: { $0.isDefault })
                 ?? audioStreams.first
             let audioCodec = audioStream?.codec?.lowercased() ?? ""
+            self.audioCodec = audioCodec
+            self.container = resolvedSource.container?.lowercased() ?? ""
             let audioIsCompatible = AudioCompatibility.isDirectPlayable(audioCodec)
 
             if audioIsCompatible {
@@ -424,10 +442,22 @@ public final class PlayerViewModel {
 
     /// Runs HDR transfer-function detection on the asset and publishes the
     /// result to `hdrFormat`. The view layer reads this to decide between the
-    /// AVFoundation path and the Metal HDR renderer.
+    /// AVFoundation path and the Metal HDR renderer. Also resolves
+    /// `resolvedEngine` from the user's preference now that HDR + audio codec
+    /// are both known.
     public func detectHDR(asset: AVAsset) async {
         hdrFormat = await HDRDetector.detect(asset: asset)
         print("[Player] HDR detection: \(hdrFormat)")
+
+        let raw = UserDefaults.standard.string(forKey: "playbackEngine") ?? PlaybackEngine.auto.rawValue
+        let preference = PlaybackEngine(rawValue: raw) ?? .auto
+        resolvedEngine = PlaybackEngineResolver.resolve(
+            preference: preference,
+            hdrFormat: hdrFormat,
+            container: container,
+            audioCodec: audioCodec
+        )
+        print("[Player] Engine: \(resolvedEngine.displayName)")
     }
 
     /// Returns the chapter name for the given playback position ticks, or nil if no chapters.
