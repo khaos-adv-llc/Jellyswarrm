@@ -143,7 +143,7 @@ public struct SettingsView: View {
                         value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
                     )
                     LabeledContent("License", value: "GPL v3")
-                    Link("Source Code", destination: URL(string: "https://github.com/yourusername/jellyswarrm")!)
+                    Link("Source Code", destination: URL(string: "https://github.com/khaos-adv-llc/jellyswarrm")!)
                     Link("Based on Fladder", destination: URL(string: "https://github.com/DonutWare/Fladder")!)
                 }
 
