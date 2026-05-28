@@ -51,7 +51,7 @@ public actor HLSProxyServer {
             }
         }
 
-        if case .port(let assignedPort) = listener.port {
+        if let assignedPort = listener.port {
             self.port = assignedPort.rawValue
             print("[HLSProxy] Listening on 127.0.0.1:\(self.port)")
         }
