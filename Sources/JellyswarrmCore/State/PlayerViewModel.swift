@@ -30,11 +30,12 @@ public final class PlayerViewModel {
     public var audioStreamIndex: Int?
     public var subtitleStreamIndex: Int?
 
-    // Synchronous mutex for loadPlayback. `@Observable` properties have async
-    // observation semantics — two concurrent callers can both see isLoading
-    // == false before either sets it true. A plain stored Bool gives us
-    // atomic test-and-set on the main actor.
-    private var _loadingStarted: Bool = false
+    // Task-based mutex for loadPlayback. A Bool guard is not race-free here:
+    // SwiftUI can call .task twice in quick succession and both invocations
+    // can pass an `await`-suspended guard before either sets the flag. Using
+    // a Task handle guarantees the second caller cancels the first and runs
+    // alone — see loadPlayback.
+    private var loadTask: Task<Void, Never>?
 
     /// Set to true once the player has actually rendered a frame (iOS:
     /// AVPlayerViewController.isReadyForDisplay → true; other platforms: after
@@ -65,28 +66,29 @@ public final class PlayerViewModel {
     // MARK: - Load Playback
 
     public func loadPlayback(for item: MediaItem, startFromBeginning: Bool = false) async {
-        // Idempotency guard: SwiftUI may re-run .task and call loadPlayback
-        // twice concurrently. Two PlaybackInfo POSTs + two transcode sessions
-        // confuses Jellyfin and contributes to AVPlayer hitting an empty
-        // segment 0 (FigPlayer_MediaServiceDied / -12860).
-        guard !_loadingStarted else {
-            print("[Player] loadPlayback already in progress, ignoring duplicate call")
-            return
+        // SwiftUI may re-run .task and call loadPlayback twice concurrently.
+        // Cancel any prior in-flight load and replace it with a single new
+        // task — both racing callers then await the same Task and the prior
+        // PlaybackInfo + transcode session work is dropped before the second
+        // request hits the network.
+        loadTask?.cancel()
+        let task = Task { [weak self] in
+            await self?.performLoadPlayback(for: item, startFromBeginning: startFromBeginning)
         }
-        _loadingStarted = true
-        defer { if playbackURL == nil { _loadingStarted = false } }
+        loadTask = task
+        await task.value
+    }
+
+    private func performLoadPlayback(for item: MediaItem, startFromBeginning: Bool) async {
+        if Task.isCancelled { return }
 
         // Tear down any existing session before starting a new one. Without
         // this, a previous session's HLSProxyServer listener can stay bound
-        // (port != 0) while a second loadPlayback racing past the guard sees
-        // a stale port and produces broken-pipe errors. stop() is a no-op
-        // when hasStartedPlayback is false, but it always tears down the
-        // proxy and clears state.
+        // (port != 0) and the new session would inherit a stale port.
         if hasStartedPlayback || isHLSTranscode || playbackURL != nil {
             await stop()
-            // stop() resets _loadingStarted; re-arm it so we keep the guard.
-            _loadingStarted = true
         }
+        if Task.isCancelled { return }
 
         guard let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
@@ -98,6 +100,7 @@ public final class PlayerViewModel {
         do {
             // First call: get available media sources
             let info = try await api.getPlaybackInfo(server: server, token: token, itemId: item.id)
+            if Task.isCancelled { return }
             playbackInfo = info
 
             guard let source = info.mediaSources.first else {
@@ -119,6 +122,7 @@ public final class PlayerViewModel {
                 audioStreamIndex: chosenAudio,
                 subtitleStreamIndex: chosenSub
             )
+            if Task.isCancelled { return }
 
             let resolvedSource = resolvedInfo.mediaSources.first(where: { $0.id == source.id })
                 ?? resolvedInfo.mediaSources.first
@@ -380,7 +384,7 @@ public final class PlayerViewModel {
         playbackURL = nil
         isHLSTranscode = false
         isLoading = false
-        _loadingStarted = false
+        loadTask = nil
         playSessionId = nil
     }
 

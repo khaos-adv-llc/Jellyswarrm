@@ -86,10 +86,10 @@ public struct VideoPlayerView: View {
             //
             // Bind the VM to the real AppState exactly once. If the view is
             // ever re-presented (e.g. fullScreenCover binding toggles, or two
-            // navigation pushes race), reuse the existing VM whose
-            // _loadingStarted guard already prevents a second PlaybackInfo
-            // fetch. Creating a fresh VM each time would give each
-            // load-attempt its own guard, defeating the protection.
+            // navigation pushes race), reuse the existing VM so its
+            // loadTask-based mutex can cancel the prior load. Creating a
+            // fresh VM each time would give each load-attempt its own task,
+            // defeating the protection.
             let vm: PlayerViewModel
             if vmBound {
                 vm = playerVM
@@ -215,9 +215,20 @@ public struct VideoPlayerView: View {
                 timeObserverToken = nil
             }
             let vm = playerVM
-            Task { await vm.stop() }
-            player?.pause()
+            let outgoingPlayer = player
+            // Nil the player item BEFORE proxy teardown so AVPlayer cancels
+            // its in-flight segment fetches against the proxy. Without this,
+            // pre-fetched .ts requests land on a closed NWListener and log
+            // as "Connection reset by peer" noise.
+            outgoingPlayer?.pause()
+            outgoingPlayer?.replaceCurrentItem(with: nil)
             player = nil
+            Task {
+                // Give AVPlayer a moment to drain its in-flight requests
+                // before the loopback proxy listener is cancelled.
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                await vm.stop()
+            }
         }
     }
 
@@ -254,15 +265,18 @@ public struct VideoPlayerView: View {
             let shouldSeek = playerVC?.shouldSeekForResume ?? true
             let resumeTicks = Int64(resumeSeconds * 10_000_000)
             print("[Resume] Starting from: \(resumeTicks) ticks for \(itemId) (seek=\(shouldSeek))")
-            let notifyStarted: () -> Void = {
-                Task { @MainActor in await vmRef.notifyPlaybackStarted() }
-            }
             if shouldSeek && resumeSeconds > 5.0 {
                 // Jellyfin ticks are 10-million-ths of a second; use that
                 // timescale directly so the seek target is exact rather than
                 // quantized to 600Hz.
                 let resumeTime = CMTime(value: resumeTicks, timescale: 10_000_000)
                 print("[Player] Seeking to resume position: \(resumeTicks) ticks (\(resumeSeconds)s)")
+                // The completion handler used to also call notifyPlaybackStarted
+                // and the periodic time observer would fire immediately after
+                // seek finished — producing two `[Resume] Saved` lines in quick
+                // succession. Keep the completion handler narrow: just resume
+                // playback. The periodic observer (installed below) will pick
+                // up the position on its first scheduled fire.
                 player.seek(
                     to: resumeTime,
                     toleranceBefore: .zero,
@@ -270,13 +284,12 @@ public struct VideoPlayerView: View {
                 ) { finished in
                     player.play()
                     print("[Player] Resumed and playing from \(resumeSeconds)s (seek finished=\(finished))")
-                    notifyStarted()
                 }
             } else {
                 player.play()
                 print("[Player] Playing from start")
-                notifyStarted()
             }
+            Task { @MainActor in await vmRef.notifyPlaybackStarted() }
         }
         playerVC.readyObservation = readyObservation
 
