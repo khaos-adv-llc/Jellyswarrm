@@ -206,18 +206,21 @@ public final class HDRMetalRenderer: NSObject, MTKViewDelegate {
         guard let metalLayer = mtkView.layer as? CAMetalLayer else { return }
 
         if hdrFormat == .hdr10 {
-            let masteringInfo = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferMasteringDisplayColorVolumeKey, nil)
-            let contentLightLevel = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferContentLightLevelInfoKey, nil)
-            if masteringInfo != nil || contentLightLevel != nil {
+            let masteringRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferMasteringDisplayColorVolumeKey, nil)
+            let contentRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferContentLightLevelInfoKey, nil)
+            let masteringData = (masteringRaw as? NSData).map { Data(referencing: $0) }
+            let contentData = (contentRaw as? NSData).map { Data(referencing: $0) }
+            if masteringData != nil || contentData != nil {
                 metalLayer.edrMetadata = .hdr10(
-                    displayInfo: masteringInfo as? Data,
-                    contentInfo: contentLightLevel as? Data,
+                    displayInfo: masteringData,
+                    contentInfo: contentData,
                     opticalOutputScale: 100
                 )
             }
         } else if hdrFormat == .hlg {
-            let ambientInfo = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferAmbientViewingEnvironmentKey, nil)
-            metalLayer.edrMetadata = .hlg(ambientViewingEnvironment: ambientInfo as? Data)
+            let ambientRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferAmbientViewingEnvironmentKey, nil)
+            let ambientData = (ambientRaw as? NSData).map { Data(referencing: $0) }
+            metalLayer.edrMetadata = .hlg(ambientViewingEnvironment: ambientData)
         }
 #endif
     }
