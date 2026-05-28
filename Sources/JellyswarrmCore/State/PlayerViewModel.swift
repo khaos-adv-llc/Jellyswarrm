@@ -265,7 +265,9 @@ public final class PlayerViewModel {
             )
             groups.append(AVTimedMetadataGroup(items: [titleItem], timeRange: timeRange))
         }
+        #if os(iOS) || os(tvOS)
         playerItem.navigationMarkers = groups
+        #endif
     }
 
     // MARK: - URL Helpers
