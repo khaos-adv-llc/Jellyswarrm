@@ -142,7 +142,11 @@ public struct VideoPlayerView: View {
             #else
             if vm.positionTicks > 0 {
                 let seconds = vm.positionTicks.ticksToSeconds
-                await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+                await avPlayer.seek(
+                    to: CMTime(seconds: seconds, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                )
             }
             avPlayer.play()
             #endif
@@ -187,11 +191,11 @@ public struct VideoPlayerView: View {
                 print("[Player] Seeking to resume position: \(resumeSeconds)s")
                 player.seek(
                     to: resumeTime,
-                    toleranceBefore: CMTime(seconds: 2, preferredTimescale: 600),
+                    toleranceBefore: .zero,
                     toleranceAfter: .zero
-                ) { _ in
+                ) { finished in
                     player.play()
-                    print("[Player] Resumed and playing from \(resumeSeconds)s")
+                    print("[Player] Resumed and playing from \(resumeSeconds)s (seek finished=\(finished))")
                 }
             } else {
                 player.play()

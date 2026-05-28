@@ -6,7 +6,5 @@
     <array>
         <string>group.com.jellyswarrm.shared</string>
     </array>
-    <key>com.apple.developer.user-management.runs-as-current-user</key>
-    <true/>
 </dict>
 </plist>
