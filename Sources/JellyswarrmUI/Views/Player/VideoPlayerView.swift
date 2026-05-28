@@ -112,7 +112,9 @@ public struct VideoPlayerView: View {
             playerItem.preferredForwardBufferDuration = 10
             vm.configurePlayerItem(playerItem)
             let avPlayer = AVPlayer(playerItem: playerItem)
-            avPlayer.automaticallyWaitsToMinimizeStalling = true
+            // Disable buffering rate evaluation — stream.mp4 has no Content-Length
+            // so AVPlayer waits forever. Play immediately and let it buffer as it goes.
+            avPlayer.automaticallyWaitsToMinimizeStalling = false
 
             // Observe AVPlayerItem status for diagnostics
             let observation = playerItem.observe(\.status, options: [.new]) { item, _ in
