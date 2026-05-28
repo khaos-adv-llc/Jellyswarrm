@@ -18,12 +18,24 @@ public struct MediaDetailView: View {
     @State private var seriesDetail: MediaItem?
     @State private var isLoading = true
     @State private var showPlayer = false
+    @State private var startFromBeginning = false
+    @State private var localUserData: UserData?
     @State private var seasons: [MediaItem] = []
     @State private var selectedSeasonId: String?
     @State private var episodes: [MediaItem] = []
     @State private var isLoadingEpisodes = false
 
     var displayItem: MediaItem { detail ?? item }
+
+    /// True when the user has marked this item watched (locally or from server)
+    private var isPlayed: Bool {
+        localUserData?.played ?? displayItem.isPlayed
+    }
+
+    /// 0–100 playback progress, drawn from local optimistic state when available
+    private var playedPercentage: Double? {
+        localUserData?.playedPercentage ?? displayItem.playedPercentage
+    }
 
     /// Item whose artwork should fill the header. For a series this is the
     /// series itself; for an episode we use the parent series so the hero
@@ -72,9 +84,16 @@ public struct MediaDetailView: View {
                 seriesDetail = try? await libraryVM.getDetail(for: seriesId)
             }
         }
-        .fullScreenCover(isPresented: $showPlayer) {
-            VideoPlayerView(item: displayItem)
+        #if os(macOS)
+        .sheet(isPresented: $showPlayer) {
+            VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
+                .frame(minWidth: 800, minHeight: 450)
         }
+        #else
+        .fullScreenCover(isPresented: $showPlayer) {
+            VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
+        }
+        #endif
     }
 
     // MARK: - Series Loading
@@ -168,10 +187,18 @@ public struct MediaDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(episode.displayTitle)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(episode.displayTitle)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .lineLimit(2)
+                    if episode.isPlayed {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                            .accessibilityLabel("Watched")
+                    }
+                }
                 if let overview = episode.overview, !overview.isEmpty {
                     Text(overview)
                         .font(.caption)
@@ -207,12 +234,39 @@ public struct MediaDetailView: View {
             )
             .frame(height: 280)
 
-            Text(headerItem.name)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .padding()
-                .shadow(radius: 6)
+            VStack(alignment: .leading, spacing: 4) {
+                // Always show the item's own name — never swap to seriesName so the title
+                // doesn't flicker when the full item fetch completes.
+                Text(displayItem.name)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .shadow(radius: 6)
+                if displayItem.type == .episode, let subtitle = episodeSubtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .shadow(radius: 4)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var episodeSubtitle: String? {
+        let s = displayItem.parentIndexNumber.map { "S\($0)" } ?? ""
+        let e = displayItem.indexNumber.map { "E\($0)" } ?? ""
+        let prefix = "\(s)\(e)"
+        let series = displayItem.seriesName ?? ""
+        switch (prefix.isEmpty, series.isEmpty) {
+        case (true, true): return nil
+        case (false, true): return prefix
+        case (true, false): return series
+        case (false, false): return "\(prefix) · \(series)"
         }
     }
 
@@ -261,11 +315,12 @@ public struct MediaDetailView: View {
         HStack(spacing: 12) {
             if displayItem.type.isPlayable {
                 Button {
+                    startFromBeginning = false
                     showPlayer = true
                 } label: {
                     HStack {
-                        Image(systemName: item.userData?.hasProgress == true ? "play.circle" : "play.fill")
-                        Text(item.userData?.hasProgress == true ? "Resume" : "Play")
+                        Image(systemName: displayItem.userData?.hasProgress == true ? "play.circle" : "play.fill")
+                        Text(displayItem.userData?.hasProgress == true ? "Resume" : "Play")
                             .fontWeight(.semibold)
                     }
                     .frame(maxWidth: .infinity)
@@ -277,6 +332,38 @@ public struct MediaDetailView: View {
                 .buttonStyle(.plain)
             }
 
+            // Restart — only when there's existing playback progress
+            if displayItem.type.isPlayable,
+               let percent = playedPercentage, percent > 0
+            {
+                Button {
+                    startFromBeginning = true
+                    showPlayer = true
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.title2)
+                        .frame(width: 50, height: 50)
+                        .background(Color.gray.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Restart")
+            }
+
+            // Watched toggle
+            Button {
+                Task { await toggleWatched() }
+            } label: {
+                Image(systemName: isPlayed ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.title2)
+                    .foregroundStyle(isPlayed ? .green : .primary)
+                    .frame(width: 50, height: 50)
+                    .background(Color.gray.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPlayed ? "Mark Unwatched" : "Mark Watched")
+
             Button {
                 // Favorite toggle — implement with libraryVM.toggleFavorite
             } label: {
@@ -287,6 +374,27 @@ public struct MediaDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private func toggleWatched() async {
+        let target = !isPlayed
+        // Optimistic local update so the button flips instantly
+        localUserData = UserData(
+            playbackPositionTicks: localUserData?.playbackPositionTicks ?? displayItem.userData?.playbackPositionTicks ?? 0,
+            playCount: localUserData?.playCount ?? displayItem.userData?.playCount ?? 0,
+            isFavorite: localUserData?.isFavorite ?? displayItem.userData?.isFavorite ?? false,
+            played: target,
+            key: localUserData?.key ?? displayItem.userData?.key ?? "",
+            lastPlayedDate: localUserData?.lastPlayedDate ?? displayItem.userData?.lastPlayedDate,
+            playedPercentage: target ? 100 : 0,
+            unplayedItemCount: localUserData?.unplayedItemCount ?? displayItem.userData?.unplayedItemCount
+        )
+        do {
+            localUserData = try await libraryVM.setPlayed(target, itemId: displayItem.id)
+        } catch {
+            // Revert optimistic flip on failure
+            localUserData = displayItem.userData
         }
     }
 

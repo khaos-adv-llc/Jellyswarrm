@@ -104,11 +104,31 @@ public struct LibrarySectionView: View {
         [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 12, alignment: .top)]
     }
 
+    private var itemNoun: String {
+        switch section.collectionType {
+        case .tvshows: return totalCount == 1 ? "Show" : "Shows"
+        case .movies: return totalCount == 1 ? "Movie" : "Movies"
+        case .music: return totalCount == 1 ? "Album" : "Albums"
+        default: return totalCount == 1 ? "Item" : "Items"
+        }
+    }
+
     public var body: some View {
         ScrollView {
             if isLoading, items.isEmpty {
                 ProgressView().padding(.top, 80)
             } else {
+                if totalCount > 0 {
+                    HStack {
+                        Text("\(totalCount) \(itemNoun)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
                 LazyVGrid(columns: columns, alignment: .center, spacing: 16) {
                     ForEach(items) { item in
                         NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
@@ -135,7 +155,7 @@ public struct LibrarySectionView: View {
                 .padding()
 
                 if !isLoading, totalCount > 0 {
-                    Text("\(items.count) of \(totalCount) items")
+                    Text("\(items.count) of \(totalCount) \(itemNoun)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.bottom)

@@ -8,14 +8,16 @@ import SwiftUI
 
 public struct VideoPlayerView: View {
     let item: MediaItem
+    let startFromBeginning: Bool
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var playerVM: PlayerViewModel
     @State private var player: AVPlayer?
 
-    public init(item: MediaItem) {
+    public init(item: MediaItem, startFromBeginning: Bool = false) {
         self.item = item
+        self.startFromBeginning = startFromBeginning
         _playerVM = State(initialValue: PlayerViewModel(appState: AppState()))
     }
 
@@ -58,15 +60,21 @@ public struct VideoPlayerView: View {
         }
         .task {
             playerVM = PlayerViewModel(appState: appState)
-            await playerVM.loadPlayback(for: item)
+            await playerVM.loadPlayback(for: item, startFromBeginning: startFromBeginning)
             if let url = playerVM.playbackURL {
-                player = AVPlayer(url: url)
-                // Seek to last position
+                let playerItem = AVPlayerItem(url: url)
+                // Don't artificially cap bitrate — let direct play use full bitrate
+                // for HDR / Dolby Vision.
+                playerItem.preferredPeakBitRate = 0
+                playerVM.configurePlayerItem(playerItem)
+                let avPlayer = AVPlayer(playerItem: playerItem)
+                player = avPlayer
+                // Seek to last position (skipped when restarting)
                 if playerVM.positionTicks > 0 {
                     let seconds = playerVM.positionTicks.ticksToSeconds
-                    await player?.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+                    await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
                 }
-                player?.play()
+                avPlayer.play()
                 playerVM.isPlaying = true
             }
         }

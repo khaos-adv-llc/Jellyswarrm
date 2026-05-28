@@ -63,7 +63,11 @@ public struct SearchView: View {
                     }
                 }
             }
+            #if os(macOS)
+            .listStyle(.inset)
+            #else
             .listStyle(.grouped)
+            #endif
             .navigationTitle("Search")
             .searchable(text: $searchVM.query, prompt: "Search movies, shows, episodes...")
             .onChange(of: searchVM.query) { _, newValue in

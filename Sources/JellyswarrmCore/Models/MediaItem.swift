@@ -41,6 +41,7 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public let locationType: String?
     public let videoType: String?
     public let container: String?
+    public let chapters: [ChapterInfo]?
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
@@ -78,6 +79,7 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
         case locationType = "LocationType"
         case videoType = "VideoType"
         case container = "Container"
+        case chapters = "Chapters"
     }
 
     // MARK: - Computed helpers
@@ -114,6 +116,9 @@ public struct MediaItem: Codable, Sendable, Identifiable, Equatable, Hashable {
     public var firstBackdropTag: String? {
         backdropImageTags?.first
     }
+
+    public var isPlayed: Bool { userData?.played ?? false }
+    public var playedPercentage: Double? { userData?.playedPercentage }
 }
 
 // MARK: - Supporting Types
@@ -125,6 +130,27 @@ public struct NameId: Codable, Sendable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case name = "Name"
+    }
+}
+
+public struct ChapterInfo: Codable, Sendable, Equatable, Hashable {
+    public let name: String?
+    public let startPositionTicks: Int64?
+    public let imageTag: String?
+    public let imagePath: String?
+
+    public init(name: String?, startPositionTicks: Int64?, imageTag: String? = nil, imagePath: String? = nil) {
+        self.name = name
+        self.startPositionTicks = startPositionTicks
+        self.imageTag = imageTag
+        self.imagePath = imagePath
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case startPositionTicks = "StartPositionTicks"
+        case imageTag = "ImageTag"
+        case imagePath = "ImagePath"
     }
 }
 

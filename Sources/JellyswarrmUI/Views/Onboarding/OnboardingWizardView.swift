@@ -8,6 +8,11 @@
 
 import JellyswarrmCore
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 public enum OnboardingStep: Int, CaseIterable {
     case welcome
@@ -307,15 +312,46 @@ private struct WelcomeStep: View {
     let next: () -> Void
     @State private var appeared = false
 
+    @ViewBuilder
+    private var appLogo: some View {
+        #if os(macOS)
+        if let nsImage = NSImage(named: "AppIcon") {
+            Image(nsImage: nsImage)
+                .resizable()
+                .frame(width: 120, height: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        } else {
+            fallbackLogo
+        }
+        #elseif canImport(UIKit)
+        if let uiImage = UIImage(named: "AppIcon") {
+            Image(uiImage: uiImage)
+                .resizable()
+                .frame(width: 120, height: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        } else {
+            fallbackLogo
+        }
+        #else
+        fallbackLogo
+        #endif
+    }
+
+    private var fallbackLogo: some View {
+        Image(systemName: "play.circle.fill")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 140, height: 140)
+            .foregroundStyle(.white, .indigo)
+            .symbolRenderingMode(.palette)
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "play.circle.fill")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 140, height: 140)
-                .foregroundStyle(.white, .indigo)
-                .symbolRenderingMode(.palette)
+            appLogo
+                .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+                .padding(.top, 8)
 
             VStack(spacing: 8) {
                 Text("Welcome to Jellyswarrm")

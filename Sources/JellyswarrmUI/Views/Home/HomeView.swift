@@ -23,7 +23,7 @@ public struct HomeView: View {
                             NavigationLink(value: featured) {
                                 HeroHeaderView(
                                     item: featured,
-                                    imageURL: libraryVM.imageURL(for: featured, type: .backdrop, maxWidth: 1280)
+                                    imageURL: heroBackdropURL(for: featured)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -125,6 +125,18 @@ public struct HomeView: View {
         .redacted(reason: .placeholder)
     }
 
+    /// For episodes, prefer the parent series backdrop so the hero doesn't show an episode still.
+    private func heroBackdropURL(for item: MediaItem) -> URL? {
+        if item.type == .episode, let seriesId = item.seriesId,
+           let server = appState.currentServer
+        {
+            return JellyfinAPIClient.shared.imageURL(
+                server: server, itemId: seriesId, imageType: .backdrop, tag: nil, maxWidth: 1280
+            )
+        }
+        return libraryVM.imageURL(for: item, type: .backdrop, maxWidth: 1280)
+    }
+
     // MARK: - Platform sizing
 
     private var cardWidth: CGFloat {
@@ -161,27 +173,27 @@ public struct HeroHeaderView: View {
                 switch phase {
                 case let .success(image):
                     image.resizable()
-                        .aspectRatio(16 / 9, contentMode: .fill)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: heroHeight)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [.black, .black.opacity(0.7), .clear],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
                 default:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .aspectRatio(16 / 9, contentMode: .fill)
+                        .fill(Color(white: 0.1))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: heroHeight)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: heroHeight)
-            .clipped()
 
-            // Gradient overlay
-            LinearGradient(
-                colors: [.clear, .clear, .black.opacity(0.8)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: heroHeight)
-
-            // Metadata
-            VStack(alignment: .leading, spacing: 8) {
+            // Metadata — constrained to screen width so description can't overflow
+            VStack(alignment: .leading, spacing: 6) {
                 if let rating = item.communityRating {
                     Label(String(format: "%.1f", rating), systemImage: "star.fill")
                         .font(.caption)
@@ -189,22 +201,27 @@ public struct HeroHeaderView: View {
                 }
 
                 Text(item.name)
-                    .font(.title)
+                    .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(.white)
                     .shadow(radius: 4)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                if let overview = item.overview {
+                if let overview = item.overview, !overview.isEmpty {
                     Text(overview)
-                        .font(.callout)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(3)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(.horizontal, heroPadding)
             .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var heroHeight: CGFloat {

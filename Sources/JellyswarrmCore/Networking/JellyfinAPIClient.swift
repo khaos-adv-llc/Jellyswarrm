@@ -218,7 +218,7 @@ public actor JellyfinAPIClient {
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
-            URLQueryItem(name: "Fields", value: "Overview,Genres,MediaStreams,People,Studios,Taglines,ProviderIds,ImageTags,BackdropImageTags"),
+            URLQueryItem(name: "Fields", value: "Overview,Genres,MediaStreams,People,Studios,Taglines,ProviderIds,ImageTags,BackdropImageTags,Chapters"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ]
@@ -520,107 +520,99 @@ public actor JellyfinAPIClient {
     }
 
     private func defaultDeviceProfile() -> [String: Any] {
-        // Device profile for Apple platforms (iOS 17+, tvOS 17+, macOS 14+)
-        //
-        // Priority order Jellyfin uses:
-        //   1. DirectPlay  — serve the file as-is (no server work)
-        //   2. DirectStream — remux into a streamable container (fast, no re-encode)
-        //   3. Transcode   — full re-encode via FFmpeg (CPU-intensive, last resort)
-        //
-        // MKV strategy: direct-play when codec is natively supported;
-        // otherwise direct-stream remuxes MKV→MP4/TS with no re-encode.
-        [
+        // Capabilities-driven device profile. Direct play whatever the hardware
+        // decoder supports — HEVC, Dolby Vision, AV1 — so the server never has
+        // to transcode on Apple Silicon / A-series chips.
+
+        var directPlayProfiles: [[String: Any]] = []
+        var codecProfiles: [[String: Any]] = []
+
+        // H.264 — universally supported on every Apple device we care about.
+        directPlayProfiles.append([
+            "Type": "Video",
+            "Container": "mp4,mkv,mov,m4v",
+            "VideoCodec": "h264",
+            "AudioCodec": "aac,mp3,ac3,eac3,flac,opus,dts,truehd,pcm",
+        ])
+
+        // HEVC / H.265 — hardware decoded on A9+. Add Dolby Vision profiles
+        // (dvhe = profile 5, dvh1 = profile 8) when the chip can do DV in HW.
+        if PlaybackCapabilities.supportsHEVC {
+            var hevcVideoCodecs = "hevc,h265"
+            if PlaybackCapabilities.supportsDolbyVision {
+                hevcVideoCodecs += ",dvhe,dvh1"
+            }
+            directPlayProfiles.append([
+                "Type": "Video",
+                "Container": "mp4,mkv,mov,m4v",
+                "VideoCodec": hevcVideoCodecs,
+                "AudioCodec": "aac,ac3,eac3,truehd,dts,flac,opus,pcm,aac-latm,mp3",
+            ])
+        }
+
+        // AV1 — A17 Pro / M-series have hardware decoders.
+        if PlaybackCapabilities.supportsAV1 {
+            directPlayProfiles.append([
+                "Type": "Video",
+                "Container": "mp4,mkv,webm",
+                "VideoCodec": "av1",
+                "AudioCodec": "aac,opus,flac",
+            ])
+        }
+
+        // Audio-only direct play
+        directPlayProfiles.append([
+            "Type": "Audio",
+            "Container": "mp3,aac,flac,ogg,opus,m4a,wav",
+            "AudioCodec": "mp3,aac,flac,opus,vorbis,pcm",
+        ])
+
+        // HEVC level/width caps so we don't accept beyond-spec streams.
+        if PlaybackCapabilities.supportsHEVC {
+            codecProfiles.append([
+                "Type": "Video",
+                "Codec": "hevc",
+                "Conditions": [
+                    ["Condition": "LessThanEqual", "Property": "VideoLevel", "Value": "183", "IsRequired": false],
+                    ["Condition": "LessThanEqual", "Property": "Width", "Value": "3840", "IsRequired": false],
+                ],
+            ])
+        }
+
+        // Transcode fallback — HLS / H.264 for anything we can't direct play.
+        let transcodingProfiles: [[String: Any]] = [[
+            "Type": "Video",
+            "Container": "ts",
+            "VideoCodec": "h264",
+            "AudioCodec": "aac,mp3",
+            "Protocol": "hls",
+            "Context": "Streaming",
+            "MinSegments": 2,
+            "BreakOnNonKeyFrames": true,
+            "MaxAudioChannels": "8",
+        ]]
+
+        let subtitleProfiles: [[String: Any]] = [
+            ["Format": "srt", "Method": "External"],
+            ["Format": "ass", "Method": "External"],
+            ["Format": "ssa", "Method": "External"],
+            ["Format": "vtt", "Method": "External"],
+            ["Format": "sub", "Method": "Embed"],
+            ["Format": "pgs", "Method": "Embed"],
+            ["Format": "pgssub", "Method": "Embed"],
+            ["Format": "dvdsub", "Method": "Embed"],
+            ["Format": "dvbsub", "Method": "Embed"],
+        ]
+
+        return [
+            "DirectPlayProfiles": directPlayProfiles,
+            "TranscodingProfiles": transcodingProfiles,
+            "CodecProfiles": codecProfiles,
+            "SubtitleProfiles": subtitleProfiles,
+            "ResponseProfiles": [],
             "MaxStaticBitrate": 200_000_000,
             "MaxStreamingBitrate": 200_000_000,
             "MusicStreamingTranscodingBitrate": 384_000,
-
-            // ── Direct Play ─────────────────────────────────────────────────
-            // Tell Jellyfin we can play these containers natively.
-            // Video codec constraints are handled by CodecProfiles below.
-            "DirectPlayProfiles": [
-                // Video — MP4/MOV/TS are natively streamable by AVPlayer.
-                // MKV is intentionally excluded: AVPlayer cannot stream MKV directly.
-                // MKV files are handled by direct-stream (remux to MP4, no re-encode).
-                ["Container": "mp4,m4v", "Type": "Video"],
-                ["Container": "mov",     "Type": "Video"],
-                ["Container": "ts",      "Type": "Video"],
-                ["Container": "m2ts",    "Type": "Video"],
-                // Audio
-                ["Container": "mp3",  "Type": "Audio"],
-                ["Container": "aac",  "Type": "Audio"],
-                ["Container": "flac", "Type": "Audio"],
-                ["Container": "alac", "Type": "Audio"],
-                ["Container": "wav",  "Type": "Audio"],
-            ],
-
-            // ── Direct Stream (remux, no re-encode) ─────────────────────────
-            // If direct play fails (e.g. unsupported audio track in MKV),
-            // ask Jellyfin to remux into MP4 — very fast, no CPU spike.
-            "DirectStreamProfiles": [
-                ["Container": "mp4", "Type": "Video"],
-                ["Container": "ts",  "Type": "Video"],
-            ],
-
-            // ── Transcode (last resort) ──────────────────────────────────────
-            // HLS+H.264 for anything that can't direct-play or direct-stream.
-            "TranscodingProfiles": [
-                [
-                    "Container": "ts",
-                    "Type": "Video",
-                    "AudioCodec": "aac,mp3,ac3",
-                    "VideoCodec": "h264",
-                    "Protocol": "hls",
-                    "Context": "Streaming",
-                    "MaxAudioChannels": "6",
-                    "MinSegments": "2",
-                    "BreakOnNonKeyFrames": true,
-                ],
-            ],
-
-            // ── Container Profiles ───────────────────────────────────────────
-            // Restrict MKV direct play to natively-decodable video codecs.
-            // Anything else (e.g. AV1, VC-1) falls through to direct-stream.
-            "ContainerProfiles": [
-                [
-                    "Type": "Video",
-                    "Container": "mkv",
-                    "Conditions": [
-                        [
-                            "Condition": "EqualsAny",
-                            "Property": "VideoCodecTag",
-                            "Value": "avc1,avc3,hvc1,hev1,vp09,av01",
-                            "IsRequired": false,
-                        ],
-                    ],
-                ],
-            ],
-
-            // ── Codec Profiles ───────────────────────────────────────────────
-            // Cap H.265 (HEVC) to levels the device actually supports.
-            "CodecProfiles": [
-                [
-                    "Type": "Video",
-                    "Codec": "hevc",
-                    "Conditions": [
-                        [
-                            "Condition": "LessThanEqual",
-                            "Property": "VideoLevel",
-                            "Value": "183",  // Level 6.1 — max for A15+
-                            "IsRequired": false,
-                        ],
-                    ],
-                ],
-            ],
-
-            // ── Subtitle Profiles ────────────────────────────────────────────
-            "SubtitleProfiles": [
-                ["Format": "vtt", "Method": "External"],
-                ["Format": "srt", "Method": "External"],
-                ["Format": "ass", "Method": "External"],
-                ["Format": "ssa", "Method": "External"],
-                ["Format": "sub", "Method": "External"],
-                ["Format": "idx", "Method": "External"],
-            ],
         ]
     }
 }

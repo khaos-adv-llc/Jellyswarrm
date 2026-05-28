@@ -2,6 +2,7 @@
 
 // Jellyswarrm — GPL v3 with App Store exception
 
+import AVFoundation
 import Foundation
 import Observation
 
@@ -36,7 +37,7 @@ public final class PlayerViewModel {
 
     // MARK: - Load Playback
 
-    public func loadPlayback(for item: MediaItem) async {
+    public func loadPlayback(for item: MediaItem, startFromBeginning: Bool = false) async {
         guard let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
 
@@ -115,8 +116,10 @@ public final class PlayerViewModel {
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
 
-            // Resume from last position
-            if let userData = item.userData, userData.hasProgress {
+            // Resume from last position unless caller asked to restart
+            if startFromBeginning {
+                positionTicks = 0
+            } else if let userData = item.userData, userData.hasProgress {
                 positionTicks = userData.playbackPositionTicks
             }
 
@@ -209,6 +212,62 @@ public final class PlayerViewModel {
 
     public var subtitleStreams: [MediaStream] {
         selectedSource?.mediaStreams?.filter { $0.type == .subtitle } ?? []
+    }
+
+    // MARK: - Chapter Metadata
+
+    /// Apply chapters from the current item as `AVTimedMetadataGroup` navigation markers
+    /// so `AVPlayerViewController` shows chapter names natively while scrubbing.
+    public func configurePlayerItem(_ playerItem: AVPlayerItem) {
+        playerItem.preferredPeakBitRate = 0
+        guard let chapters = currentItem?.chapters, !chapters.isEmpty else { return }
+        setChapterMetadata(chapters: chapters, on: playerItem)
+    }
+
+    public func chapterName(forTicks ticks: Int64, chapters: [ChapterInfo]) -> String? {
+        chapters
+            .filter { ($0.startPositionTicks ?? 0) <= ticks }
+            .last?.name
+    }
+
+    private func setChapterMetadata(chapters: [ChapterInfo], on playerItem: AVPlayerItem) {
+        // Sort chapters so we can compute each one's duration as the gap to the next chapter.
+        let sorted = chapters
+            .filter { ($0.startPositionTicks ?? -1) >= 0 }
+            .sorted { ($0.startPositionTicks ?? 0) < ($1.startPositionTicks ?? 0) }
+        guard !sorted.isEmpty else { return }
+        let endSeconds: Double = {
+            if durationTicks > 0 { return Double(durationTicks) / 10_000_000.0 }
+            return 24 * 60 * 60 // fallback: cap last chapter at 24h
+        }()
+
+        var groups: [AVTimedMetadataGroup] = []
+        for (idx, chapter) in sorted.enumerated() {
+            guard let ticks = chapter.startPositionTicks, let name = chapter.name, !name.isEmpty
+            else { continue }
+            let startSec = Double(ticks) / 10_000_000.0
+            let nextSec: Double
+            if idx + 1 < sorted.count, let next = sorted[idx + 1].startPositionTicks {
+                nextSec = Double(next) / 10_000_000.0
+            } else {
+                nextSec = endSeconds
+            }
+            let durationSec = max(nextSec - startSec, 0.001)
+
+            let titleItem = AVMutableMetadataItem()
+            titleItem.identifier = .commonIdentifierTitle
+            titleItem.value = name as NSString
+            titleItem.extendedLanguageTag = "und"
+
+            let timeRange = CMTimeRange(
+                start: CMTime(seconds: startSec, preferredTimescale: 600),
+                duration: CMTime(seconds: durationSec, preferredTimescale: 600)
+            )
+            groups.append(AVTimedMetadataGroup(items: [titleItem], timeRange: timeRange))
+        }
+        guard !groups.isEmpty else { return }
+        let markersGroup = AVNavigationMarkersGroup(title: "Chapters", timedNavigationMarkers: groups)
+        playerItem.navigationMarkerGroups = [markersGroup]
     }
 
     // MARK: - URL Helpers
