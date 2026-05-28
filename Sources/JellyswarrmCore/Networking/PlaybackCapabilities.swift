@@ -36,3 +36,21 @@ public enum PlaybackCapabilities {
     public static var supportsHDR10: Bool { supportsHEVC && isHDRCapable }
     public static var supportsHLG: Bool { supportsHEVC && isHDRCapable }
 }
+
+/// Audio codec compatibility for AVPlayer direct-stream playback over HTTP.
+/// AVPlayer can play many codecs from local files (FLAC, AC-3, E-AC-3) but
+/// rejects most non-AAC tracks when streamed inside a remuxed MP4 over the
+/// network. Anything outside this set must be transcoded server-side (audio
+/// only — the video stream is passed through).
+public enum AudioCompatibility {
+
+    /// Audio codecs AVPlayer can play in a remuxed MP4 streamed over HTTP.
+    public static let directPlayableCodecs: Set<String> = [
+        "aac", "mp3", "mp2", "pcm", "alac", "ac3",
+    ]
+
+    public static func isDirectPlayable(_ codec: String?) -> Bool {
+        guard let codec = codec?.lowercased(), !codec.isEmpty else { return false }
+        return directPlayableCodecs.contains(codec)
+    }
+}

@@ -86,7 +86,37 @@ public final class PlayerViewModel {
             print("[Player] directStreamUrl: \(resolvedSource.directStreamUrl ?? "-")")
             print("[Player] transcodingUrl: \(resolvedSource.transcodingUrl ?? "-")")
 
-            if let directPath = resolvedSource.directStreamUrl {
+            // Pick the audio stream we'll actually play and check if AVPlayer can
+            // direct-stream it. EAC3 / Opus / TrueHD / DTS / FLAC fail when remuxed
+            // into MP4 over HTTP — we must transcode just the audio in that case.
+            let audioStreams = resolvedSource.mediaStreams?.filter { $0.type == .audio } ?? []
+            let audioStream = audioStreams.first(where: { $0.index == chosenAudio })
+                ?? audioStreams.first(where: { $0.isDefault })
+                ?? audioStreams.first
+            let audioCodec = audioStream?.codec?.lowercased() ?? ""
+            let audioIsCompatible = AudioCompatibility.isDirectPlayable(audioCodec)
+            if audioIsCompatible {
+                print("[Player] Audio codec '\(audioCodec)' is direct-playable, using direct stream")
+            } else {
+                print("[Player] Audio codec '\(audioCodec)' requires transcoding, using HLS with audio transcode")
+            }
+
+            let videoStream = resolvedSource.mediaStreams?.first(where: { $0.type == .video })
+            let videoCodec = videoStream?.codec?.lowercased() ?? "h264"
+
+            if !audioIsCompatible {
+                // Build an HLS URL that transcodes ONLY the audio to AAC and passes
+                // the video stream through untouched — cheap on the server.
+                playbackURL = buildAudioTranscodeURL(
+                    itemId: item.id,
+                    source: resolvedSource,
+                    audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
+                    videoCodec: videoCodec,
+                    server: server,
+                    token: token
+                )
+                print("[Player] Using audio-transcode HLS URL: \(playbackURL?.absoluteString ?? "-")")
+            } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
                 print("[Player] Using server-provided stream URL")
@@ -291,6 +321,49 @@ public final class PlayerViewModel {
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         if let a = audioIndex { items.append(URLQueryItem(name: "AudioStreamIndex", value: "\(a)")) }
         if let s = subtitleIndex { items.append(URLQueryItem(name: "SubtitleStreamIndex", value: "\(s)")) }
+        components.queryItems = items
+        return components.url
+    }
+
+    /// Constructs an HLS URL that transcodes ONLY the audio track to AAC and
+    /// passes the video stream through untouched. Used when the source's audio
+    /// codec (EAC3, Opus, TrueHD, DTS, FLAC, etc.) can't be played by AVPlayer
+    /// over HTTP but the video codec (H.264 / HEVC / AV1) is decodable natively.
+    /// Server CPU cost is minimal — only the audio is re-encoded.
+    private func buildAudioTranscodeURL(
+        itemId: String,
+        source: MediaSource,
+        audioStreamIndex: Int,
+        videoCodec: String,
+        server: JellyfinServer,
+        token: String
+    ) -> URL? {
+        let base = server.baseURL.absoluteString.hasSuffix("/")
+            ? server.baseURL.absoluteString
+            : server.baseURL.absoluteString + "/"
+        let path = "Videos/\(itemId)/master.m3u8"
+        guard var components = URLComponents(string: base + path) else { return nil }
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
+            URLQueryItem(name: "api_key", value: token),
+            URLQueryItem(name: "AudioCodec", value: "aac"),
+            URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
+            URLQueryItem(name: "VideoCodec", value: videoCodec),
+            URLQueryItem(name: "TranscodingContainer", value: "ts"),
+            URLQueryItem(name: "TranscodeReasons", value: "AudioCodecNotSupported"),
+            URLQueryItem(name: "SegmentContainer", value: "ts"),
+            URLQueryItem(name: "MinSegments", value: "2"),
+            URLQueryItem(name: "BreakOnNonKeyFrames", value: "true"),
+            URLQueryItem(name: "h264-profile", value: "high"),
+            URLQueryItem(name: "MaxVideoBitrate", value: "200000000"),
+            URLQueryItem(name: "VideoBitrate", value: "200000000"),
+            URLQueryItem(name: "RequireAvc", value: "false"),
+            URLQueryItem(name: "RequireNonAnamorphic", value: "false"),
+            URLQueryItem(name: "EnableMpegtsM2TsMode", value: "false"),
+            URLQueryItem(name: "static", value: "false"),
+        ]
+        if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         components.queryItems = items
         return components.url
     }
