@@ -49,6 +49,25 @@ public struct VideoPlayerView: View {
                 // @State `player` is retained solely so onDisappear can tear
                 // down the AVPlayer; the body itself renders nothing for it.
                 Color.clear
+                #elseif os(macOS)
+                ZStack(alignment: .topLeading) {
+                    SystemPlayerView(
+                        player: player,
+                        onDismiss: { performDismiss() },
+                        onControlsVisibilityChange: { visible in controlsVisible = visible }
+                    )
+                    .ignoresSafeArea()
+
+                    Button(action: { performDismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(radius: 4)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(20)
+                    .keyboardShortcut(.escape, modifiers: [])
+                }
                 #else
                 SystemPlayerView(
                     player: player,
@@ -540,18 +559,48 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
         let onDismiss: () -> Void
         var onControlsVisibilityChange: ((Bool) -> Void)? = nil
 
-        func makeNSView(context _: Context) -> AVPlayerView {
+        func makeNSView(context: Context) -> AVPlayerView {
             let view = AVPlayerView()
             view.player = player
             view.controlsStyle = .inline
             view.showsFullScreenToggleButton = true
             view.allowsPictureInPicturePlayback = true
+            context.coordinator.observe(player: player)
             return view
         }
 
-        func updateNSView(_ nsView: AVPlayerView, context _: Context) {
+        func updateNSView(_ nsView: AVPlayerView, context: Context) {
             if nsView.player !== player {
                 nsView.player = player
+                context.coordinator.observe(player: player)
+            }
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator()
+        }
+
+        @MainActor
+        final class Coordinator {
+            private var statusObservation: NSKeyValueObservation?
+
+            // AVPlayerView does not auto-play once the item becomes ready (unlike
+            // iOS's AVPlayerViewController). Observe AVPlayerItem.status and
+            // call play() exactly once when it transitions to .readyToPlay.
+            func observe(player: AVPlayer) {
+                statusObservation = nil
+                guard let item = player.currentItem else { return }
+                if item.status == .readyToPlay {
+                    player.play()
+                    return
+                }
+                statusObservation = item.observe(\.status, options: [.new]) { [weak self, weak player] item, _ in
+                    guard item.status == .readyToPlay else { return }
+                    Task { @MainActor in
+                        player?.play()
+                        self?.statusObservation = nil
+                    }
+                }
             }
         }
     }
