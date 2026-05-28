@@ -18,11 +18,10 @@ public struct VideoPlayerView: View {
     @Environment(\.dismiss) private var dismiss
 
     // Optional + lazy-initialized in .onAppear so we never construct a dummy
-    // PlayerViewModel against a throwaway AppState. iOS presents
-    // AVPlayerViewController directly from .task via MainActor.run rather
-    // than routing through a Color.clear.onAppear block — the onAppear
-    // indirection caused a double presentation that tripped iOS -12860 when
-    // SwiftUI re-rendered after `player` was assigned.
+    // PlayerViewModel against a throwaway AppState. On iOS, AVPlayerViewController
+    // is no longer presented from this view — PlayerPresenter handles UIKit
+    // presentation directly from MediaDetailView, eliminating the previous
+    // SwiftUI fullScreenCover + UIKit double-modal layering.
     @State private var playerVM: PlayerViewModel?
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
@@ -128,7 +127,13 @@ public struct VideoPlayerView: View {
 
     @ViewBuilder
     private var avFoundationBody: some View {
-        #if os(tvOS)
+        #if os(iOS)
+        // iOS no longer presents AVPlayerViewController via VideoPlayerView —
+        // PlayerPresenter handles UIKit presentation directly from
+        // MediaDetailView. This view is only constructed on iOS now for the
+        // VLC path (hosted inside a UIHostingController by PlayerPresenter).
+        Color.black.ignoresSafeArea()
+        #elseif os(tvOS)
         // tvOS: AVPlayerViewController must be the top-level view returned
         // from .fullScreenCover so UIKit gives it full-screen size and
         // routes focus / Siri Remote gestures correctly. Embedding it
@@ -176,13 +181,7 @@ public struct VideoPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let player {
-                #if os(iOS)
-                // On iOS, AVPlayerViewController is presented directly via
-                // UIKit from .task (see presentAVPlayerViewController). The
-                // @State `player` is retained solely so onDisappear can tear
-                // down the AVPlayer; the body itself renders nothing for it.
-                Color.clear
-                #elseif os(macOS)
+                #if os(macOS)
                 ZStack(alignment: .topLeading) {
                     // Route HDR10 / HLG through the Metal renderer so we get
                     // proper PQ / HLG tonemapping against the display's EDR
@@ -316,29 +315,10 @@ public struct VideoPlayerView: View {
             }
         }
 
-        #if os(iOS)
-        // On iOS, seek + play are deferred to isReadyForDisplay (see
-        // presentAVPlayerViewController). Seeking before the layer is
-        // attached to a real window causes AVPlayerViewController to
-        // reset position to 0 once it mounts.
-        //
-        // Present AVPlayerViewController directly from here on the main
-        // actor, BEFORE assigning @State player. Routing presentation
-        // through Color.clear.onAppear caused a double presentation: the
-        // @State assignment re-rendered the body, the newly-inserted
-        // Color.clear subtree's onAppear fired, and SwiftUI's view-identity
-        // semantics could fire it twice — producing a second
-        // AVPlayerViewController that killed the first with iOS -12860.
-        await MainActor.run {
-            presentAVPlayerViewController(
-                player: avPlayer,
-                vm: vm,
-                statusObservation: statusObservation,
-                tcObservation: tcObservation
-            )
-        }
-        player = avPlayer
-        #else
+        // On iOS, AVPlayerViewController is presented by PlayerPresenter
+        // directly from MediaDetailView — VideoPlayerView's iOS body is a
+        // no-op black background. The AVFoundation setup below is for macOS
+        // (and tvOS via the tvOS-specific avFoundationBody branch).
         _ = statusObservation
         _ = tcObservation
         player = avPlayer
@@ -385,7 +365,6 @@ public struct VideoPlayerView: View {
                 defaults.set(Double(ticks), forKey: key)
             }
         }
-        #endif
         vm.isPlaying = true
         if let chapters = vm.currentItem?.chapters, !chapters.isEmpty {
             vm.startChapterObserver(on: avPlayer, chapters: chapters)
@@ -399,10 +378,11 @@ public struct VideoPlayerView: View {
         hideTask = nil
         #endif
         #if !os(iOS)
-        // iOS teardown is handled by DismissAwareAVPlayerViewController
-        // .viewDidDisappear — SwiftUI fires this onDisappear spuriously on
-        // iOS 26 beta when the parent MediaDetailView re-renders, which
-        // would otherwise kill the active player mid-playback.
+        // iOS teardown is handled either by DismissAwareAVPlayerViewController
+        // (AVFoundation path, in PlayerPresenter) or by VLC's onStopped
+        // callback (VLC path, in vlcBody). SwiftUI fires this onDisappear
+        // spuriously on iOS 26 beta when the parent MediaDetailView
+        // re-renders, which would otherwise kill the active player.
         if let token = timeObserverToken {
             player?.removeTimeObserver(token)
             timeObserverToken = nil
@@ -419,224 +399,7 @@ public struct VideoPlayerView: View {
         #endif
     }
 
-    #if os(iOS)
-    private func presentAVPlayerViewController(
-        player: AVPlayer,
-        vm: PlayerViewModel,
-        statusObservation: NSKeyValueObservation,
-        tcObservation: NSKeyValueObservation
-    ) {
-        print("[Player] UIKit-presenting AVPlayerViewController, player=\(player), item=\(String(describing: player.currentItem))")
-
-        let playerVC = DismissAwareAVPlayerViewController()
-        playerVC.player = player
-        playerVC.showsPlaybackControls = true
-        playerVC.videoGravity = .resizeAspect
-        playerVC.allowsPictureInPicturePlayback = true
-        playerVC.updatesNowPlayingInfoCenter = false
-        playerVC.modalPresentationStyle = .fullScreen
-        playerVC.entersFullScreenWhenPlaybackBegins = true
-        playerVC.exitsFullScreenWhenPlaybackEnds = true
-        playerVC.onDismissed = { dismiss() }
-        playerVC.onStop = { [weak vm] in
-            // Mirror the non-iOS teardown sequence: pause + drop the item to
-            // cancel in-flight proxy fetches, brief sleep, then stop the VM.
-            await MainActor.run {
-                player.pause()
-                player.replaceCurrentItem(with: nil)
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            await vm?.stop()
-        }
-        playerVC.itemId = item.id
-        // Retain the diagnostic KVO tokens for the session — without this
-        // they deinit immediately after .task returns, which can interfere
-        // with AVPlayerItem/AVPlayer internal state. viewDidDisappear nils
-        // them at teardown.
-        playerVC.statusObservation = statusObservation
-        playerVC.tcObservation = tcObservation
-        playerVC.resumeSeconds = vm.positionTicks.ticksToSeconds
-        // Both direct-stream and HLS-transcode resume by seeking the local
-        // AVPlayer after isReadyForDisplay fires. Passing StartTimeTicks to
-        // Jellyfin causes the first .ts segment to lack a keyframe at PTS 0,
-        // which AVFoundation rejects with the "Playback Prohibited" icon.
-        playerVC.shouldSeekForResume = true
-
-        let vmRef = vm
-        let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
-            print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
-            guard change.newValue == true, let player = player else { return }
-            playerVC?.readyObservation = nil
-
-            let resumeSeconds = playerVC?.resumeSeconds ?? 0
-            let itemId = playerVC?.itemId ?? ""
-            let shouldSeek = playerVC?.shouldSeekForResume ?? true
-            let resumeTicks = Int64(resumeSeconds * 10_000_000)
-            print("[Resume] Starting from: \(resumeTicks) ticks for \(itemId) (seek=\(shouldSeek))")
-            if shouldSeek && resumeSeconds > 5.0 {
-                // Jellyfin ticks are 10-million-ths of a second; use that
-                // timescale directly so the seek target is exact rather than
-                // quantized to 600Hz.
-                let resumeTime = CMTime(value: resumeTicks, timescale: 10_000_000)
-                print("[Player] Seeking to resume position: \(resumeTicks) ticks (\(resumeSeconds)s)")
-                // The completion handler used to also call notifyPlaybackStarted
-                // and the periodic time observer would fire immediately after
-                // seek finished — producing two `[Resume] Saved` lines in quick
-                // succession. Keep the completion handler narrow: just resume
-                // playback. The periodic observer (installed below) will pick
-                // up the position on its first scheduled fire.
-                player.seek(
-                    to: resumeTime,
-                    toleranceBefore: .zero,
-                    toleranceAfter: .zero
-                ) { finished in
-                    player.play()
-                    print("[Player] Resumed and playing from \(resumeSeconds)s (seek finished=\(finished))")
-                }
-            } else {
-                player.play()
-                print("[Player] Playing from start")
-            }
-            Task { @MainActor in await vmRef.notifyPlaybackStarted() }
-        }
-        playerVC.readyObservation = readyObservation
-
-        let interval = CMTime(seconds: 10, preferredTimescale: 600)
-        // The AVPlayer is seeked to the resume point client-side after
-        // readyForDisplay, so its currentTime is already the true content
-        // position — no offset adjustment needed. Capture vm weakly so the
-        // observer closure cannot keep the view model alive past view
-        // teardown if the observer is somehow not removed.
-        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player, weak vm] time in
-            guard let player = player,
-                  let vc = playerVC,
-                  let vm,
-                  player.timeControlStatus == .playing else { return }
-            let seconds = time.seconds
-            guard seconds.isFinite, seconds > 0 else { return }
-            let ticks = Int64(seconds * 10_000_000)
-            vm.positionTicks = ticks
-            let defaults = UserDefaults.standard
-            let key = "resume_\(vc.itemId)"
-            let duration = player.currentItem?.duration.seconds
-            if let duration, duration.isFinite, duration > 0, seconds > duration - 60 {
-                defaults.removeObject(forKey: key)
-                print("[Resume] Cleared ticks for \(vc.itemId) (near end of media)")
-            } else {
-                defaults.set(Double(ticks), forKey: key)
-                print("[Resume] Saved \(ticks) ticks for \(vc.itemId) (server + local)")
-            }
-        }
-
-        // iOS 26 beta: after seek completes, AVPlayerViewController's controls
-        // auto-hide timer fails to re-arm and the scrub bar stays visible. Watch
-        // timeControlStatus transition from waiting → playing (the signature of
-        // a seek completing) and force a controls reset to re-arm the timer.
-        playerVC.seekStatusObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak playerVC] p, _ in
-            DispatchQueue.main.async {
-                guard let vc = playerVC else { return }
-                switch p.timeControlStatus {
-                case .waitingToPlayAtSpecifiedRate:
-                    vc.wasSeekingOrWaiting = true
-                case .playing:
-                    if vc.wasSeekingOrWaiting {
-                        vc.wasSeekingOrWaiting = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak vc] in
-                            vc?.showsPlaybackControls = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak vc] in
-                                vc?.showsPlaybackControls = true
-                            }
-                        }
-                    }
-                default:
-                    break
-                }
-            }
-        }
-
-        guard let root = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })?
-            .windows.first(where: { $0.isKeyWindow })?
-            .rootViewController
-        else {
-            print("[Player] ERROR: could not find root view controller for UIKit presentation")
-            return
-        }
-
-        var top = root
-        while let next = top.presentedViewController, !next.isBeingDismissed {
-            top = next
-        }
-
-        if top.isBeingDismissed {
-            // The cover is mid-dismissal — retry after the animation completes
-            print("[Player] Presenter is mid-dismissal, retrying in 0.5s")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak playerVC] in
-                guard let playerVC else { return }
-                var retryTop = UIApplication.shared.connectedScenes
-                    .compactMap({ $0 as? UIWindowScene })
-                    .first(where: { $0.activationState == .foregroundActive })?
-                    .windows.first(where: { $0.isKeyWindow })?
-                    .rootViewController
-                guard var retryTop else { return }
-                var cursor: UIViewController = retryTop
-                while let next = cursor.presentedViewController, !next.isBeingDismissed {
-                    cursor = next
-                }
-                guard !cursor.isBeingDismissed else {
-                    print("[Player] Presenter still dismissing after retry, giving up")
-                    return
-                }
-                cursor.present(playerVC, animated: true) {
-                    print("[Player] AVPlayerViewController UIKit-presented (retry), awaiting readyForDisplay for autoplay")
-                }
-            }
-        } else {
-            top.present(playerVC, animated: true) {
-                print("[Player] AVPlayerViewController UIKit-presented, awaiting readyForDisplay for autoplay")
-            }
-        }
-    }
-    #endif
 }
-
-#if os(iOS)
-private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
-    var onDismissed: (() -> Void)?
-    var onStop: (() async -> Void)?
-    var readyObservation: NSKeyValueObservation?
-    var seekStatusObservation: NSKeyValueObservation?
-    var statusObservation: NSKeyValueObservation?
-    var tcObservation: NSKeyValueObservation?
-    var wasSeekingOrWaiting: Bool = false
-    var resumeSeconds: Double = 0
-    var shouldSeekForResume: Bool = true
-    var itemId: String = ""
-    var timeObserver: Any?
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        // Only genuine dismissal — not SwiftUI lifecycle churn — should tear
-        // down the player session.
-        if isBeingDismissed || isMovingFromParent {
-            if let token = timeObserver {
-                player?.removeTimeObserver(token)
-                timeObserver = nil
-            }
-            statusObservation = nil
-            tcObservation = nil
-            let stopClosure = onStop
-            onStop = nil
-            Task { await stopClosure?() }
-            // Capture and nil BEFORE calling — prevents double-dismiss
-            let dismissClosure = onDismissed
-            onDismissed = nil
-            dismissClosure?()
-        }
-    }
-}
-#endif
 
 // MARK: - System AVPlayerViewController (tvOS, macOS)
 // Using AVPlayerViewController on tvOS/macOS ensures:

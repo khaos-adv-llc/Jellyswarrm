@@ -96,12 +96,25 @@ public struct MediaDetailView: View {
                 presentMacPlayer()
             }
         }
+        #elseif os(iOS)
+        // Direct UIKit presentation of AVPlayerViewController (or VLC hosting
+        // controller) — no SwiftUI .fullScreenCover layer. This eliminates the
+        // "tap Done twice" bug: tapping Done dismisses the only modal layer,
+        // returning straight to the detail view.
+        .onChange(of: showPlayer) { _, newValue in
+            guard newValue else { return }
+            PlayerPresenter.presentPlayer(
+                item: displayItem,
+                startFromBeginning: startFromBeginning,
+                appState: appState,
+                onDismissed: { showPlayer = false }
+            )
+        }
         #else
         .fullScreenCover(isPresented: $showPlayer) {
-            // Stable identity prevents SwiftUI from cycling the cover's hosting
-            // controller on iOS 26 beta when MediaDetailView re-renders (e.g.
-            // when the .task above finishes and assigns `detail`). Without it,
-            // the cycle fires onDisappear mid-playback and kills the player.
+            // tvOS still uses .fullScreenCover — TVPlayerRepresentable is
+            // designed to be the top-level view returned from the cover so
+            // UIKit hands it the full screen and routes Siri Remote focus.
             VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
                 .id(displayItem.id)
         }
