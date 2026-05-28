@@ -265,9 +265,7 @@ public final class PlayerViewModel {
             )
             groups.append(AVTimedMetadataGroup(items: [titleItem], timeRange: timeRange))
         }
-        guard !groups.isEmpty else { return }
-        let markersGroup = AVNavigationMarkersGroup(title: "Chapters", timedNavigationMarkers: groups)
-        playerItem.navigationMarkerGroups = [markersGroup]
+        playerItem.navigationMarkers = groups
     }
 
     // MARK: - URL Helpers

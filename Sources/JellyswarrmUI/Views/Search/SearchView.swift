@@ -63,8 +63,8 @@ public struct SearchView: View {
                     }
                 }
             }
-            #if os(macOS)
-            .listStyle(.inset)
+            #if os(macOS) || os(tvOS)
+            .listStyle(.plain)
             #else
             .listStyle(.grouped)
             #endif
