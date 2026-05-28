@@ -15,6 +15,9 @@ public struct VideoPlayerView: View {
     @State private var playerVM: PlayerViewModel
     @State private var player: AVPlayer?
     @State private var controlsVisible: Bool = false
+    #if os(iOS)
+    @State private var didPresent: Bool = false
+    #endif
 
     public init(item: MediaItem, startFromBeginning: Bool = false) {
         self.item = item
@@ -27,32 +30,25 @@ public struct VideoPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let player {
-                // Use AVPlayerViewController on all platforms:
-                // - Correctly renders HDR / Dolby Vision colour
-                // - Provides built-in transport controls + dismiss button
-                // - Supports Picture-in-Picture and AirPlay out of the box
+                #if os(iOS)
+                // On iOS 26 beta, AVPlayerViewController hosted inside SwiftUI's
+                // fullScreenCover via UIViewControllerRepresentable never gets a
+                // Metal render surface (readyForDisplay stays false → black
+                // video, audio only). Present AVPlayerViewController directly
+                // via UIKit instead so AVPlayerLayer gets a real UIWindow.
+                Color.clear
+                    .onAppear {
+                        guard !didPresent else { return }
+                        didPresent = true
+                        presentAVPlayerViewController(player: player)
+                    }
+                #else
                 SystemPlayerView(
                     player: player,
                     onDismiss: { dismiss() },
                     onControlsVisibilityChange: { visible in controlsVisible = visible }
                 )
                 .ignoresSafeArea()
-
-                #if os(iOS)
-                if controlsVisible, let chapterName = playerVM.currentChapterName {
-                    VStack {
-                        Spacer()
-                        Text(chapterName)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 4)
-                            .background(.black.opacity(0.4), in: Capsule())
-                            .transition(.opacity)
-                            .padding(.bottom, 120)
-                    }
-                    .allowsHitTesting(false)
-                }
                 #endif
             } else if playerVM.isLoading {
                 VStack(spacing: 16) {
@@ -141,7 +137,12 @@ public struct VideoPlayerView: View {
                 let seconds = vm.positionTicks.ticksToSeconds
                 await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
             }
+            #if !os(iOS)
+            // On iOS, playback is started after AVPlayerViewController is
+            // presented (see presentAVPlayerViewController) so the layer is
+            // attached to a real window before play() is called.
             avPlayer.play()
+            #endif
             vm.isPlaying = true
             if let chapters = vm.currentItem?.chapters, !chapters.isEmpty {
                 vm.startChapterObserver(on: avPlayer, chapters: chapters)
@@ -155,10 +156,66 @@ public struct VideoPlayerView: View {
         }
     }
 
+    #if os(iOS)
+    private func presentAVPlayerViewController(player: AVPlayer) {
+        print("[Player] UIKit-presenting AVPlayerViewController, player=\(player), item=\(String(describing: player.currentItem))")
+
+        let playerVC = DismissAwareAVPlayerViewController()
+        playerVC.player = player
+        playerVC.showsPlaybackControls = true
+        playerVC.videoGravity = .resizeAspect
+        playerVC.allowsPictureInPicturePlayback = true
+        playerVC.updatesNowPlayingInfoCenter = true
+        playerVC.modalPresentationStyle = .fullScreen
+        playerVC.entersFullScreenWhenPlaybackBegins = true
+        playerVC.exitsFullScreenWhenPlaybackEnds = true
+        playerVC.onDismissed = { dismiss() }
+
+        let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { vc, _ in
+            print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
+        }
+        playerVC.readyObservation = readyObservation
+
+        guard let root = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })?
+            .windows.first(where: { $0.isKeyWindow })?
+            .rootViewController
+        else {
+            print("[Player] ERROR: could not find root view controller for UIKit presentation")
+            return
+        }
+
+        var top = root
+        while let next = top.presentedViewController {
+            top = next
+        }
+
+        top.present(playerVC, animated: true) {
+            print("[Player] AVPlayerViewController UIKit-presented, starting playback")
+            player.play()
+        }
+    }
+    #endif
 }
 
-// MARK: - System AVPlayerViewController (iOS, iPadOS, tvOS, macOS)
-// Using AVPlayerViewController on all platforms ensures:
+#if os(iOS)
+private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
+    var onDismissed: (() -> Void)?
+    var readyObservation: NSKeyValueObservation?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed || isMovingFromParent {
+            onDismissed?()
+            onDismissed = nil
+        }
+    }
+}
+#endif
+
+// MARK: - System AVPlayerViewController (tvOS, macOS)
+// Using AVPlayerViewController on tvOS/macOS ensures:
 // - Correct HDR / Dolby Vision tone-mapping via VideoToolbox
 // - Native transport bar with working dismiss / done button
 // - Picture-in-Picture and AirPlay support
@@ -187,7 +244,7 @@ public struct VideoPlayerView: View {
             }
         }
     }
-#else
+#elseif os(tvOS)
     import UIKit
 
     struct SystemPlayerView: UIViewControllerRepresentable {
@@ -197,102 +254,33 @@ public struct VideoPlayerView: View {
 
         func makeUIViewController(context: Context) -> AVPlayerViewController {
             let playerVC = AVPlayerViewController()
-            // Bind player synchronously here — deferring to updateUIViewController
-            // causes the AVPlayerLayer to initialize without a player and renders
-            // black video on iOS 26.
             playerVC.player = player
             playerVC.showsPlaybackControls = true
             playerVC.videoGravity = .resizeAspect
             playerVC.allowsPictureInPicturePlayback = true
-            #if os(iOS)
-                playerVC.updatesNowPlayingInfoCenter = true
-                playerVC.entersFullScreenWhenPlaybackBegins = false
-            #endif
             playerVC.delegate = context.coordinator
-
-            print("[Player] AVPlayerViewController player set: \(playerVC.player != nil), readyForDisplay: \(playerVC.isReadyForDisplay)")
-            context.coordinator.observeReadyForDisplay(on: playerVC)
-
-            #if os(iOS)
-                // Fallback for the UIKit idle-timer bug when AVPlayerViewController
-                // is hosted by SwiftUI: a transparent single-tap recognizer toggles
-                // showsPlaybackControls and schedules a manual auto-hide. UseHandled
-                // so we don't swallow taps the system controls need (they sit above
-                // the contentOverlayView).
-                let tap = UITapGestureRecognizer(
-                    target: context.coordinator,
-                    action: #selector(Coordinator.handleTap)
-                )
-                tap.cancelsTouchesInView = false
-                tap.delegate = context.coordinator
-                playerVC.contentOverlayView?.addGestureRecognizer(tap)
-                context.coordinator.playerVC = playerVC
-            #endif
-
             return playerVC
         }
 
         func updateUIViewController(_ playerVC: AVPlayerViewController, context _: Context) {
             if playerVC.player !== player {
                 playerVC.player = player
-                print("[Player] AVPlayerViewController player rebound in update: readyForDisplay=\(playerVC.isReadyForDisplay)")
             }
         }
 
         func makeCoordinator() -> Coordinator {
-            Coordinator(onDismiss: onDismiss, onControlsVisibilityChange: onControlsVisibilityChange)
+            Coordinator(onDismiss: onDismiss)
         }
 
-        final class Coordinator: NSObject, AVPlayerViewControllerDelegate, UIGestureRecognizerDelegate {
+        final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
             let onDismiss: () -> Void
-            let onControlsVisibilityChange: ((Bool) -> Void)?
-            weak var playerVC: AVPlayerViewController?
-            private var hideTask: Task<Void, Never>?
-            private var readyForDisplayObservation: NSKeyValueObservation?
-
-            init(onDismiss: @escaping () -> Void, onControlsVisibilityChange: ((Bool) -> Void)? = nil) {
+            init(onDismiss: @escaping () -> Void) {
                 self.onDismiss = onDismiss
-                self.onControlsVisibilityChange = onControlsVisibilityChange
             }
 
-            func observeReadyForDisplay(on playerVC: AVPlayerViewController) {
-                readyForDisplayObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { vc, _ in
-                    print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
-                }
+            func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
+                onDismiss()
             }
-
-            #if os(iOS)
-                @objc func handleTap() {
-                    guard let playerVC else { return }
-                    let willShow = !playerVC.showsPlaybackControls
-                    playerVC.showsPlaybackControls = willShow
-                    onControlsVisibilityChange?(willShow)
-                    hideTask?.cancel()
-                    if willShow {
-                        hideTask = Task { [weak self] in
-                            try? await Task.sleep(for: .seconds(3))
-                            guard !Task.isCancelled else { return }
-                            await MainActor.run {
-                                self?.playerVC?.showsPlaybackControls = false
-                                self?.onControlsVisibilityChange?(false)
-                            }
-                        }
-                    }
-                }
-
-                func gestureRecognizer(
-                    _: UIGestureRecognizer,
-                    shouldRecognizeSimultaneouslyWith _: UIGestureRecognizer
-                ) -> Bool {
-                    true
-                }
-            #endif
-
-            #if os(tvOS)
-                func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
-                    onDismiss()
-                }
-            #endif
         }
     }
 #endif
