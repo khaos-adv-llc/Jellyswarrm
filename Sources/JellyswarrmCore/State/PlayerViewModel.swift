@@ -4,6 +4,7 @@
 
 import AVFoundation
 import Foundation
+import JellyfinAPI
 import Observation
 
 @Observable
@@ -55,6 +56,7 @@ public final class PlayerViewModel {
 
     private let appState: AppState
     private let api = JellyfinAPIClient.shared
+    private let sdk = JellyfinSDKClient.shared
 
     public init(appState: AppState) {
         self.appState = appState
@@ -198,12 +200,12 @@ public final class PlayerViewModel {
                 if localTicks > 0 {
                     positionTicks = localTicks
                     print("[Resume] Local position: \(localTicks) ticks for \(item.id)")
-                } else if let detail = try? await api.getItemDetail(server: server, token: token, itemId: item.id),
-                          let userData = detail.userData,
-                          userData.playbackPositionTicks > 0 {
-                    // Priority 2: server UserData (cross-device fallback).
-                    positionTicks = userData.playbackPositionTicks
-                    print("[Resume] Server UserData position: \(positionTicks) ticks for \(item.id)")
+                } else if let serverTicks = try? await sdk.resumeTicks(
+                    server: server, token: token, itemId: item.id
+                ), serverTicks > 0 {
+                    // Priority 2: server UserData (cross-device fallback). MIGRATED TO SDK.
+                    positionTicks = serverTicks
+                    print("[Resume] Server UserData position (SDK): \(positionTicks) ticks for \(item.id)")
                 } else {
                     print("[Resume] No saved position — starting from beginning")
                 }
@@ -237,14 +239,20 @@ public final class PlayerViewModel {
               let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
 
-        try? await api.reportPlaybackStart(
+        // MIGRATED TO SDK. PlayMethod is now a typed enum, and we send
+        // `.transcode` whenever we are using Jellyfin's HLS transcode endpoint
+        // (previously the hand-rolled code mis-reported `DirectPlay` /
+        // `DirectStream` for transcoded streams, which broke server-side
+        // resume tracking).
+        let method: PlayMethod = isHLSTranscode ? .transcode : .directStream
+        try? await sdk.reportPlaybackStart(
             server: server,
             token: token,
             itemId: item.id,
             positionTicks: positionTicks,
             mediaSourceId: source.id,
             playSessionId: playSessionId,
-            playMethod: isHLSTranscode ? "Transcode" : "DirectStream",
+            playMethod: method,
             audioStreamIndex: audioStreamIndex,
             subtitleStreamIndex: subtitleStreamIndex
         )
@@ -265,12 +273,13 @@ public final class PlayerViewModel {
     }
 
     public func reportProgress() async {
+        // MIGRATED TO SDK.
         guard let item = currentItem,
               let source = selectedSource,
               let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
-        let method = isHLSTranscode ? "Transcode" : "DirectStream"
-        try? await api.reportPlaybackProgress(
+        let method: PlayMethod = isHLSTranscode ? .transcode : .directStream
+        try? await sdk.reportPlaybackProgress(
             server: server,
             token: token,
             itemId: item.id,
@@ -302,15 +311,15 @@ public final class PlayerViewModel {
            let source = selectedSource,
            let server = appState.currentServer,
            let token = appState.tokenForCurrentServer() {
-            let method = isHLSTranscode ? "Transcode" : "DirectStream"
-            try? await api.reportPlaybackStopped(
+            // MIGRATED TO SDK. Stop info doesn't carry PlayMethod in the SDK
+            // type — Jellyfin already knows it from the matching Start report.
+            try? await sdk.reportPlaybackStopped(
                 server: server,
                 token: token,
                 itemId: item.id,
                 positionTicks: positionTicks,
                 mediaSourceId: source.id,
-                playSessionId: playSessionId,
-                playMethod: method
+                playSessionId: playSessionId
             )
             print("[Progress] Stopped at \(positionTicks) ticks")
         }

@@ -16,11 +16,15 @@ let package = Package(
         .library(name: "JellyswarrmCore", targets: ["JellyswarrmCore"]),
         .library(name: "JellyswarrmUI", targets: ["JellyswarrmUI"]),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/jellyfin/jellyfin-sdk-swift", from: "2.0.0"),
+    ],
     targets: [
         .target(
             name: "JellyswarrmCore",
-            dependencies: [],
+            dependencies: [
+                .product(name: "JellyfinAPI", package: "jellyfin-sdk-swift"),
+            ],
             path: "Sources/JellyswarrmCore",
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
