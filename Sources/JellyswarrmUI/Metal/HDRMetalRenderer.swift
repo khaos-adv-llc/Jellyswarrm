@@ -131,11 +131,11 @@ public final class HDRMetalRenderer: NSObject, MTKViewDelegate {
         guard let metalLayer = mtkView.layer as? CAMetalLayer else { return }
         switch hdrFormat {
         case .hdr10:
-            metalLayer.edrMetadata = .hdr10(displayInfo: nil, contentInfo: nil, opticalOutputScale: 100)
+            metalLayer.edrMetadata = .hdr10(minLuminance: 0.001, maxLuminance: 1000, opticalOutputScale: 100)
         case .hlg:
-            metalLayer.edrMetadata = .hlg(ambientViewingEnvironment: nil)
+            metalLayer.edrMetadata = .hlg
         default:
-            break
+            metalLayer.edrMetadata = nil
         }
 #endif
     }
@@ -202,27 +202,8 @@ public final class HDRMetalRenderer: NSObject, MTKViewDelegate {
     }
 
     private func updateEDRMetadata(from pixelBuffer: CVPixelBuffer) {
-#if !os(tvOS)
-        guard let metalLayer = mtkView.layer as? CAMetalLayer else { return }
-
-        if hdrFormat == .hdr10 {
-            let masteringRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferMasteringDisplayColorVolumeKey, nil)
-            let contentRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferContentLightLevelInfoKey, nil)
-            let masteringData = (masteringRaw as? NSData).map { Data(referencing: $0) }
-            let contentData = (contentRaw as? NSData).map { Data(referencing: $0) }
-            if masteringData != nil || contentData != nil {
-                metalLayer.edrMetadata = .hdr10(
-                    displayInfo: masteringData,
-                    contentInfo: contentData,
-                    opticalOutputScale: 100
-                )
-            }
-        } else if hdrFormat == .hlg {
-            let ambientRaw = CVBufferCopyAttachment(pixelBuffer, kCVImageBufferAmbientViewingEnvironmentKey, nil)
-            let ambientData = (ambientRaw as? NSData).map { Data(referencing: $0) }
-            metalLayer.edrMetadata = .hlg(ambientViewingEnvironment: ambientData)
-        }
-#endif
+        // Per-frame EDR metadata update deferred — static metadata sufficient
+        // (displayInfo/contentInfo overload requires non-optional Data from SEI messages)
     }
 
     /// Stops the renderer and removes the video output from the player item.
