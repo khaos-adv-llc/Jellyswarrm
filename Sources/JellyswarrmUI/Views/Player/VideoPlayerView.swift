@@ -172,8 +172,13 @@ public struct VideoPlayerView: View {
         playerVC.exitsFullScreenWhenPlaybackEnds = true
         playerVC.onDismissed = { dismiss() }
 
-        let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { vc, _ in
+        let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
             print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
+            if change.newValue == true {
+                player?.play()
+                print("[Player] Auto-play triggered on readyForDisplay")
+                playerVC?.readyObservation = nil
+            }
         }
         playerVC.readyObservation = readyObservation
 
@@ -219,8 +224,7 @@ public struct VideoPlayerView: View {
         }
 
         top.present(playerVC, animated: true) {
-            print("[Player] AVPlayerViewController UIKit-presented, starting playback")
-            player.play()
+            print("[Player] AVPlayerViewController UIKit-presented, awaiting readyForDisplay for autoplay")
         }
     }
     #endif

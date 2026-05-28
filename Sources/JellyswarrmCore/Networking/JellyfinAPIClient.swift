@@ -54,9 +54,11 @@ public actor JellyfinAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue(
-            "MediaBrowser Client=\"Jellyswarrm\", Device=\"\(deviceName)\", DeviceId=\"\(deviceId)\", Version=\"\(appVersion)\"",
+            preAuthHeader(deviceId: deviceId, deviceName: deviceName, appVersion: appVersion),
             forHTTPHeaderField: "X-Emby-Authorization"
         )
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body = ["Username": username, "Pw": password]
         request.httpBody = try JSONEncoder().encode(body)
@@ -398,7 +400,7 @@ public actor JellyfinAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // Quick Connect initiation requires the MediaBrowser header but NO token
         request.setValue(
-            "MediaBrowser Client=\"Jellyswarrm\", Device=\"\(deviceName)\", DeviceId=\"\(deviceId)\", Version=\"\(appVersion)\"",
+            preAuthHeader(deviceId: deviceId, deviceName: deviceName, appVersion: appVersion),
             forHTTPHeaderField: "X-Emby-Authorization"
         )
         return try await perform(request: request)
@@ -423,7 +425,7 @@ public actor JellyfinAPIClient {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(
-            "MediaBrowser Client=\"Jellyswarrm\", Device=\"\(deviceName)\", DeviceId=\"\(deviceId)\", Version=\"\(appVersion)\"",
+            preAuthHeader(deviceId: deviceId, deviceName: deviceName, appVersion: appVersion),
             forHTTPHeaderField: "X-Emby-Authorization"
         )
         return try await perform(request: request)
@@ -444,7 +446,7 @@ public actor JellyfinAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(
-            "MediaBrowser Client=\"Jellyswarrm\", Device=\"\(deviceName)\", DeviceId=\"\(deviceId)\", Version=\"\(appVersion)\"",
+            preAuthHeader(deviceId: deviceId, deviceName: deviceName, appVersion: appVersion),
             forHTTPHeaderField: "X-Emby-Authorization"
         )
         let body = ["Secret": secret]
@@ -473,6 +475,18 @@ public actor JellyfinAPIClient {
     }
 
     // MARK: - Private Helpers
+
+    /// Builds an X-Emby-Authorization header value with no token (used for
+    /// authentication endpoints and Quick Connect). Values are sanitized so
+    /// non-ASCII / quoted characters in macOS device names can't break the
+    /// header and trigger a 400 from Jellyfin.
+    private nonisolated func preAuthHeader(deviceId: String, deviceName: String, appVersion: String) -> String {
+        let client = AuthHeaderValue.sanitize("Jellyswarrm-\(AuthHeaderValue.platformSuffix)")
+        let device = AuthHeaderValue.sanitize(deviceName)
+        let id = AuthHeaderValue.sanitize(deviceId)
+        let version = AuthHeaderValue.sanitize(appVersion)
+        return "MediaBrowser Client=\"\(client)\", Device=\"\(device)\", DeviceId=\"\(id)\", Version=\"\(version)\""
+    }
 
     private func makeRequest(url: URL, server: JellyfinServer, token: String) -> URLRequest {
         var request = URLRequest(url: url)
