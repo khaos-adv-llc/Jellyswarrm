@@ -341,7 +341,7 @@ public final class PlayerViewModel {
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
-        let path = "Videos/\(itemId)/master.m3u8"
+        let path = "Videos/\(itemId)/main.m3u8"
         guard var components = URLComponents(string: base + path) else { return nil }
         var items: [URLQueryItem] = [
             URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
@@ -358,7 +358,11 @@ public final class PlayerViewModel {
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         items.append(URLQueryItem(name: "api_key", value: token))
         components.queryItems = items
-        return components.url
+        let url = components.url
+        if let url = url {
+            print("[Player] HLS transcode URL (main.m3u8 direct): \(url)")
+        }
+        return url
     }
 
     /// Resolves a Jellyfin path (e.g. "/Videos/id/stream.mp4?params")
