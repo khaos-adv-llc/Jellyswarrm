@@ -69,6 +69,10 @@ public struct SearchView: View {
             .listStyle(.grouped)
             #endif
             .navigationTitle("Search")
+            .navigationDestination(for: MediaItem.self) { item in
+                MediaDetailView(item: item)
+                    .environment(libraryVM)
+            }
             .searchable(text: $searchVM.query, prompt: "Search movies, shows, episodes...")
             .onChange(of: searchVM.query) { _, newValue in
                 searchVM.queryChanged(newValue)

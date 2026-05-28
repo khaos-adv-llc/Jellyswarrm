@@ -45,6 +45,10 @@ public struct LibraryView: View {
             .refreshable {
                 await libraryVM.refresh()
             }
+            .navigationDestination(for: MediaItem.self) { item in
+                MediaDetailView(item: item)
+                    .environment(libraryVM)
+            }
         }
     }
 
