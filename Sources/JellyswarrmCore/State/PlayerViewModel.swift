@@ -176,6 +176,12 @@ public final class PlayerViewModel {
                 positionTicks = 0
             } else if let userData = item.userData, userData.hasProgress {
                 positionTicks = userData.playbackPositionTicks
+            } else {
+                let defaults = UserDefaults(suiteName: "group.com.jellyswarrm.shared")
+                let localTicks = defaults?.double(forKey: "resume_\(item.id)") ?? 0
+                if localTicks > 0 {
+                    positionTicks = Int64(localTicks)
+                }
             }
 
             // Report playback start

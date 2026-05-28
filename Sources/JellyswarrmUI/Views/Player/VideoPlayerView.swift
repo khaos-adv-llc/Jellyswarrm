@@ -134,14 +134,16 @@ public struct VideoPlayerView: View {
             _ = tcObservation
 
             player = avPlayer
+            #if os(iOS)
+            // On iOS, seek + play are deferred to isReadyForDisplay (see
+            // presentAVPlayerViewController). Seeking before the layer is
+            // attached to a real window causes AVPlayerViewController to
+            // reset position to 0 once it mounts.
+            #else
             if vm.positionTicks > 0 {
                 let seconds = vm.positionTicks.ticksToSeconds
                 await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
             }
-            #if !os(iOS)
-            // On iOS, playback is started after AVPlayerViewController is
-            // presented (see presentAVPlayerViewController) so the layer is
-            // attached to a real window before play() is called.
             avPlayer.play()
             #endif
             vm.isPlaying = true
@@ -171,16 +173,50 @@ public struct VideoPlayerView: View {
         playerVC.entersFullScreenWhenPlaybackBegins = true
         playerVC.exitsFullScreenWhenPlaybackEnds = true
         playerVC.onDismissed = { dismiss() }
+        playerVC.itemId = item.id
+        playerVC.resumeSeconds = playerVM.positionTicks.ticksToSeconds
 
         let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
             print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
-            if change.newValue == true {
-                player?.play()
-                print("[Player] Auto-play triggered on readyForDisplay")
-                playerVC?.readyObservation = nil
+            guard change.newValue == true, let player = player else { return }
+            playerVC?.readyObservation = nil
+
+            let resumeSeconds = playerVC?.resumeSeconds ?? 0
+            if resumeSeconds > 5.0 {
+                let resumeTime = CMTime(seconds: resumeSeconds, preferredTimescale: 600)
+                print("[Player] Seeking to resume position: \(resumeSeconds)s")
+                player.seek(
+                    to: resumeTime,
+                    toleranceBefore: CMTime(seconds: 2, preferredTimescale: 600),
+                    toleranceAfter: .zero
+                ) { _ in
+                    player.play()
+                    print("[Player] Resumed and playing from \(resumeSeconds)s")
+                }
+            } else {
+                player.play()
+                print("[Player] Playing from start")
             }
         }
         playerVC.readyObservation = readyObservation
+
+        let interval = CMTime(seconds: 10, preferredTimescale: 600)
+        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player] time in
+            guard let player = player,
+                  let vc = playerVC,
+                  player.timeControlStatus == .playing else { return }
+            let seconds = time.seconds
+            guard seconds.isFinite, seconds > 0 else { return }
+            let ticks = Int64(seconds * 10_000_000)
+            let defaults = UserDefaults(suiteName: "group.com.jellyswarrm.shared")
+            let key = "resume_\(vc.itemId)"
+            if let duration = player.currentItem?.duration.seconds,
+               duration.isFinite, duration > 0, seconds > duration - 60 {
+                defaults?.removeObject(forKey: key)
+            } else {
+                defaults?.set(Double(ticks), forKey: key)
+            }
+        }
 
         // iOS 26 beta: after seek completes, AVPlayerViewController's controls
         // auto-hide timer fails to re-arm and the scrub bar stays visible. Watch
@@ -236,10 +272,17 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
     var readyObservation: NSKeyValueObservation?
     var seekStatusObservation: NSKeyValueObservation?
     var wasSeekingOrWaiting: Bool = false
+    var resumeSeconds: Double = 0
+    var itemId: String = ""
+    var timeObserver: Any?
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if isBeingDismissed || isMovingFromParent {
+            if let token = timeObserver {
+                player?.removeTimeObserver(token)
+                timeObserver = nil
+            }
             onDismissed?()
             onDismissed = nil
         }
