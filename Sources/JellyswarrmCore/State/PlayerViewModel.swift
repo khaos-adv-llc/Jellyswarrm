@@ -12,6 +12,7 @@ public final class PlayerViewModel {
     public var currentItem: MediaItem?
     public var playbackInfo: PlaybackInfo?
     public var selectedSource: MediaSource?
+    public var playSessionId: String?
     public var playbackURL: URL?
     /// True when `playbackURL` points to a Jellyfin HLS transcode (main.m3u8).
     /// The HLS resource loader must be attached only in this case to bypass
@@ -99,6 +100,8 @@ public final class PlayerViewModel {
                 ?? resolvedInfo.mediaSources.first
                 ?? source
             selectedSource = resolvedSource
+            playSessionId = resolvedInfo.playSessionId ?? info.playSessionId
+            print("[Player] PlaySessionId: \(playSessionId ?? "-")")
 
             print("[Player] source: \(resolvedSource.id) container=\(resolvedSource.container ?? "-")")
             print("[Player] directStreamUrl: \(resolvedSource.directStreamUrl ?? "-")")
@@ -176,13 +179,15 @@ public final class PlayerViewModel {
                 positionTicks = 0
             } else if let userData = item.userData, userData.hasProgress {
                 positionTicks = userData.playbackPositionTicks
+                print("[Resume] Server position: \(positionTicks) ticks")
             } else {
-                // iOS 26 beta breaks App Group UserDefaults reads — resume ticks
-                // live in standard UserDefaults (per-process, no sharing needed).
+                // Fallback: local backup (UserDefaults.standard, per-process).
                 let localTicks = UserDefaults.standard.double(forKey: "resume_\(item.id)")
-                print("[Resume] Loaded \(Int64(localTicks)) ticks for \(item.id)")
                 if localTicks > 0 {
                     positionTicks = Int64(localTicks)
+                    print("[Resume] Local fallback: \(positionTicks) ticks")
+                } else {
+                    print("[Resume] No saved position — starting from beginning")
                 }
             }
 
@@ -193,6 +198,8 @@ public final class PlayerViewModel {
                 itemId: item.id,
                 positionTicks: positionTicks,
                 mediaSourceId: source.id,
+                playSessionId: playSessionId,
+                playMethod: isHLSTranscode ? "Transcode" : "DirectStream",
                 audioStreamIndex: audioStreamIndex,
                 subtitleStreamIndex: subtitleStreamIndex
             )
@@ -226,14 +233,18 @@ public final class PlayerViewModel {
               let source = selectedSource,
               let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
+        let method = isHLSTranscode ? "Transcode" : "DirectStream"
         try? await api.reportPlaybackProgress(
             server: server,
             token: token,
             itemId: item.id,
             positionTicks: positionTicks,
             isPaused: isPaused,
-            mediaSourceId: source.id
+            mediaSourceId: source.id,
+            playSessionId: playSessionId,
+            playMethod: method
         )
+        print("[Progress] Reported \(positionTicks) ticks to server")
     }
 
     public func stop() async {
@@ -243,19 +254,24 @@ public final class PlayerViewModel {
               let source = selectedSource,
               let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
+        let method = isHLSTranscode ? "Transcode" : "DirectStream"
         try? await api.reportPlaybackStopped(
             server: server,
             token: token,
             itemId: item.id,
             positionTicks: positionTicks,
-            mediaSourceId: source.id
+            mediaSourceId: source.id,
+            playSessionId: playSessionId,
+            playMethod: method
         )
+        print("[Progress] Stopped at \(positionTicks) ticks")
         isPlaying = false
         currentItem = nil
         playbackURL = nil
         isHLSTranscode = false
         isLoading = false
         _loadingStarted = false
+        playSessionId = nil
     }
 
     // MARK: - Computed

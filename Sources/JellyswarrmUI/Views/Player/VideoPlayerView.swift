@@ -149,6 +149,27 @@ public struct VideoPlayerView: View {
                 )
             }
             avPlayer.play()
+
+            // Track position every 10s so PlayerViewModel.reportProgress sends
+            // the live time, and persist a local backup for offline resume.
+            let itemId = item.id
+            let interval = CMTime(seconds: 10, preferredTimescale: 600)
+            _ = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak avPlayer] time in
+                guard let player = avPlayer,
+                      player.timeControlStatus == .playing else { return }
+                let seconds = time.seconds
+                guard seconds.isFinite, seconds > 0 else { return }
+                let ticks = Int64(seconds * 10_000_000)
+                vm.positionTicks = ticks
+                let defaults = UserDefaults.standard
+                let key = "resume_\(itemId)"
+                if let duration = player.currentItem?.duration.seconds,
+                   duration.isFinite, duration > 0, seconds > duration - 60 {
+                    defaults.removeObject(forKey: key)
+                } else {
+                    defaults.set(Double(ticks), forKey: key)
+                }
+            }
             #endif
             vm.isPlaying = true
             if let chapters = vm.currentItem?.chapters, !chapters.isEmpty {
@@ -207,6 +228,7 @@ public struct VideoPlayerView: View {
         playerVC.readyObservation = readyObservation
 
         let interval = CMTime(seconds: 10, preferredTimescale: 600)
+        let vm = playerVM
         playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player] time in
             guard let player = player,
                   let vc = playerVC,
@@ -214,8 +236,10 @@ public struct VideoPlayerView: View {
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }
             let ticks = Int64(seconds * 10_000_000)
-            // iOS 26 beta breaks App Group UserDefaults reads — use standard
-            // UserDefaults for resume ticks since they're only consumed in-process.
+            // Push ticks into PlayerViewModel so its 10s server-progress reporter
+            // sends the live position (not the stale value from playback start).
+            vm.positionTicks = ticks
+            // Local backup so resume works offline and if the server report fails.
             let defaults = UserDefaults.standard
             let key = "resume_\(vc.itemId)"
             if let duration = player.currentItem?.duration.seconds,
@@ -224,7 +248,7 @@ public struct VideoPlayerView: View {
                 print("[Resume] Cleared ticks for \(vc.itemId) (near end of media)")
             } else {
                 defaults.set(Double(ticks), forKey: key)
-                print("[Resume] Saved \(ticks) ticks for \(vc.itemId)")
+                print("[Resume] Saved \(ticks) ticks for \(vc.itemId) (server + local)")
             }
         }
 

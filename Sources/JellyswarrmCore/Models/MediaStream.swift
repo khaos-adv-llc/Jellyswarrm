@@ -65,9 +65,11 @@ public struct MediaStream: Codable, Sendable, Identifiable, Equatable, Hashable 
 
 public struct PlaybackInfo: Codable, Sendable, Hashable {
     public let mediaSources: [MediaSource]
+    public let playSessionId: String?
 
     enum CodingKeys: String, CodingKey {
         case mediaSources = "MediaSources"
+        case playSessionId = "PlaySessionId"
     }
 }
 

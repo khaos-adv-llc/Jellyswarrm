@@ -299,6 +299,8 @@ public actor JellyfinAPIClient {
         itemId: String,
         positionTicks: Int64,
         mediaSourceId: String,
+        playSessionId: String?,
+        playMethod: String = "Transcode",
         audioStreamIndex: Int?,
         subtitleStreamIndex: Int?
     ) async throws {
@@ -312,7 +314,9 @@ public actor JellyfinAPIClient {
             "CanSeek": true,
             "IsPaused": false,
             "IsMuted": false,
+            "PlayMethod": playMethod,
         ]
+        if let playSessionId { body["PlaySessionId"] = playSessionId }
         if let a = audioStreamIndex { body["AudioStreamIndex"] = a }
         if let s = subtitleStreamIndex { body["SubtitleStreamIndex"] = s }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -325,17 +329,24 @@ public actor JellyfinAPIClient {
         itemId: String,
         positionTicks: Int64,
         isPaused: Bool,
-        mediaSourceId: String
+        mediaSourceId: String,
+        playSessionId: String?,
+        playMethod: String = "Transcode"
     ) async throws {
         let url = server.baseURL.appendingPathComponent("/Sessions/Playing/Progress")
         var request = makeRequest(url: url, server: server, token: token)
         request.httpMethod = "POST"
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "ItemId": itemId,
             "PositionTicks": positionTicks,
             "IsPaused": isPaused,
+            "IsMuted": false,
+            "CanSeek": true,
             "MediaSourceId": mediaSourceId,
+            "PlayMethod": playMethod,
+            "EventName": "timeupdate",
         ]
+        if let playSessionId { body["PlaySessionId"] = playSessionId }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         _ = try await rawPerform(request: request)
     }
@@ -345,16 +356,20 @@ public actor JellyfinAPIClient {
         token: String,
         itemId: String,
         positionTicks: Int64,
-        mediaSourceId: String
+        mediaSourceId: String,
+        playSessionId: String?,
+        playMethod: String = "Transcode"
     ) async throws {
         let url = server.baseURL.appendingPathComponent("/Sessions/Playing/Stopped")
         var request = makeRequest(url: url, server: server, token: token)
         request.httpMethod = "POST"
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "ItemId": itemId,
             "PositionTicks": positionTicks,
             "MediaSourceId": mediaSourceId,
+            "PlayMethod": playMethod,
         ]
+        if let playSessionId { body["PlaySessionId"] = playSessionId }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         _ = try await rawPerform(request: request)
     }
