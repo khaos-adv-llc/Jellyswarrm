@@ -223,24 +223,6 @@ public final class AppState {
 
     // MARK: - tvOS Seerr Onboarding
 
-    public enum SeerrOnboardingResult: Equatable {
-        /// No Seerr configured, already authenticated, or API key (device-wide — no per-user action needed).
-        case notNeeded
-        /// Seerr uses Jellyfin credentials — prompt the user for their Jellyfin password.
-        case needsJellyfinAuth(SeerrServer)
-        /// Seerr uses local accounts — prompt the user for their Seerr email + password.
-        case needsLocalCredentials(SeerrServer)
-
-        public static func == (lhs: SeerrOnboardingResult, rhs: SeerrOnboardingResult) -> Bool {
-            switch (lhs, rhs) {
-            case (.notNeeded, .notNeeded): true
-            case let (.needsJellyfinAuth(a), .needsJellyfinAuth(b)): a.id == b.id
-            case let (.needsLocalCredentials(a), .needsLocalCredentials(b)): a.id == b.id
-            default: false
-            }
-        }
-    }
-
     /// Determines what (if anything) the new tvOS user needs to do for Seerr.
     /// Marked async so it can be awaited from tvOS login flow (currently synchronous
     /// but async keyword future-proofs against session verification needs).
@@ -319,5 +301,25 @@ public final class AppState {
         seerrServer = nil
         sharedDefaults.removeObject(forKey: "shared_server_ids")
         sharedDefaults.removeObject(forKey: "shared_seerr_ids")
+    }
+}
+
+// MARK: - SeerrOnboardingResult
+
+public enum SeerrOnboardingResult: Equatable, Sendable {
+    /// No Seerr configured, already authenticated, or API key (device-wide — no per-user action needed).
+    case notNeeded
+    /// Seerr uses Jellyfin credentials — prompt the user for their Jellyfin password.
+    case needsJellyfinAuth(SeerrServer)
+    /// Seerr uses local accounts — prompt the user for their Seerr email + password.
+    case needsLocalCredentials(SeerrServer)
+
+    public static func == (lhs: SeerrOnboardingResult, rhs: SeerrOnboardingResult) -> Bool {
+        switch (lhs, rhs) {
+        case (.notNeeded, .notNeeded): true
+        case let (.needsJellyfinAuth(a), .needsJellyfinAuth(b)): a.id == b.id
+        case let (.needsLocalCredentials(a), .needsLocalCredentials(b)): a.id == b.id
+        default: false
+        }
     }
 }
