@@ -12,6 +12,14 @@ public struct MainTabView: View {
     @State private var discoverVM: DiscoverViewModel
     @State private var searchVM: SearchViewModel
 
+    #if os(macOS)
+        @State private var macOSSelection: MacOSSection? = .home
+
+        enum MacOSSection: Hashable {
+            case home, library, discover, search, settings
+        }
+    #endif
+
     public init() {
         // ViewModels initialized in body with environment — see .task below
         // Using temp placeholders here; real init happens in .task via onAppear
@@ -75,56 +83,59 @@ public struct MainTabView: View {
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
-                .environment(libraryVM)
 
             LibraryView()
                 .tabItem { Label("Library", systemImage: "film.stack") }
-                .environment(libraryVM)
 
             DiscoverView()
                 .tabItem { Label("Discover", systemImage: "sparkles.tv") }
-                .environment(discoverVM)
 
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                .environment(searchVM)
 
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
+        .environment(libraryVM)
+        .environment(discoverVM)
+        .environment(searchVM)
         .task { await setupViewModels() }
     }
 
     // MARK: - macOS
 
-    #if !os(tvOS)
+    #if os(macOS)
         private var macOSLayout: some View {
             NavigationSplitView {
-                List {
-                    NavigationLink(destination: HomeView().environment(libraryVM)) {
-                        Label("Home", systemImage: "house.fill")
-                    }
-                    NavigationLink(destination: LibraryView().environment(libraryVM)) {
-                        Label("Library", systemImage: "film.stack")
-                    }
-                    NavigationLink(destination: DiscoverView().environment(discoverVM)) {
-                        Label("Discover", systemImage: "sparkles.tv")
-                    }
-                    NavigationLink(destination: SearchView().environment(searchVM)) {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
+                List(selection: $macOSSelection) {
+                    Label("Home", systemImage: "house.fill").tag(MacOSSection.home)
+                    Label("Library", systemImage: "film.stack").tag(MacOSSection.library)
+                    Label("Discover", systemImage: "sparkles.tv").tag(MacOSSection.discover)
+                    Label("Search", systemImage: "magnifyingglass").tag(MacOSSection.search)
                     Divider()
-                    NavigationLink(destination: SettingsView()) {
-                        Label("Settings", systemImage: "gearshape")
-                    }
+                    Label("Settings", systemImage: "gearshape").tag(MacOSSection.settings)
                 }
                 .listStyle(.sidebar)
                 .navigationTitle("Jellyswarrm")
             } detail: {
-                HomeView()
-                    .environment(libraryVM)
+                macOSDetail
+                    .frame(minWidth: 600, minHeight: 400)
             }
+            .environment(libraryVM)
+            .environment(discoverVM)
+            .environment(searchVM)
             .task { await setupViewModels() }
+        }
+
+        @ViewBuilder
+        private var macOSDetail: some View {
+            switch macOSSelection ?? .home {
+            case .home: HomeView()
+            case .library: LibraryView()
+            case .discover: DiscoverView()
+            case .search: SearchView()
+            case .settings: SettingsView()
+            }
         }
     #endif
 

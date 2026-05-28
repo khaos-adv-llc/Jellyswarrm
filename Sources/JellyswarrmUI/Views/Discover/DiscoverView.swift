@@ -28,19 +28,33 @@ public struct DiscoverView: View {
             Group {
                 if !appState.hasSeerrConfigured {
                     noSeerrView
+                } else if let error = discoverVM.error, discoverVM.trendingItems.isEmpty {
+                    errorView(error)
                 } else if discoverVM.isLoading, discoverVM.trendingItems.isEmpty {
                     ProgressView("Loading Discover...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if discoverVM.trendingItems.isEmpty,
+                          discoverVM.movies.isEmpty,
+                          discoverVM.tvShows.isEmpty,
+                          !discoverVM.isLoading {
+                    emptyResultsView
                 } else {
                     discoverContent
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Discover")
             .sheet(item: $selectedResult) { target in
                 switch target {
                 case let .movie(m): SeerrDetailView(movie: m)
                 case let .tv(t): SeerrDetailView(tv: t)
                 }
+            }
+            .task(id: appState.seerrServer?.id) {
+                guard appState.hasSeerrConfigured,
+                      discoverVM.trendingItems.isEmpty,
+                      !discoverVM.isLoading else { return }
+                await discoverVM.loadInitialData()
             }
         }
     }
@@ -51,16 +65,8 @@ public struct DiscoverView: View {
         @Bindable var discoverVM = discoverVM
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 32) {
-                // Tab picker
-                Picker("", selection: $discoverVM.activeTab) {
-                    ForEach(DiscoverMediaTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                #if !os(tvOS)
-                    .pickerStyle(.segmented)
-                #endif
-                .padding(.horizontal, hPad)
+                tabSelector(selection: $discoverVM.activeTab)
+                    .padding(.horizontal, hPad)
 
                 switch discoverVM.activeTab {
                 case .trending:
@@ -75,9 +81,50 @@ public struct DiscoverView: View {
             }
             .padding(.bottom, 24)
         }
-        .refreshable {
-            await discoverVM.loadInitialData()
-        }
+        #if !os(tvOS)
+            .refreshable {
+                await discoverVM.loadInitialData()
+            }
+        #endif
+    }
+
+    // MARK: - Tab Selector
+    //
+    // On iOS/macOS we use a segmented picker. On tvOS the segmented style is
+    // unavailable and the default (.menu) style is barely visible / hard to focus,
+    // so we render a row of focusable buttons instead.
+
+    @ViewBuilder
+    private func tabSelector(selection: Binding<DiscoverMediaTab>) -> some View {
+        #if os(tvOS)
+            HStack(spacing: 20) {
+                ForEach(DiscoverMediaTab.allCases) { tab in
+                    Button {
+                        selection.wrappedValue = tab
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.headline)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.card)
+                    .background(
+                        selection.wrappedValue == tab
+                            ? Color.accentColor.opacity(0.35)
+                            : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                }
+                Spacer()
+            }
+        #else
+            Picker("", selection: selection) {
+                ForEach(DiscoverMediaTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+        #endif
     }
 
     // MARK: - Trending
@@ -225,7 +272,7 @@ public struct DiscoverView: View {
         }
     }
 
-    // MARK: - No Seerr
+    // MARK: - Empty / Error States
 
     private var noSeerrView: some View {
         ContentUnavailableView {
@@ -236,6 +283,36 @@ public struct DiscoverView: View {
             NavigationLink(destination: SeerrSetupView()) {
                 Text("Connect Jellyseerr")
                     .fontWeight(.semibold)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private func errorView(_ error: NetworkError) -> some View {
+        ContentUnavailableView {
+            Label("Couldn't Load Discover", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(error.localizedDescription)
+        } actions: {
+            Button {
+                Task { await discoverVM.loadInitialData() }
+            } label: {
+                Text("Retry").fontWeight(.semibold)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var emptyResultsView: some View {
+        ContentUnavailableView {
+            Label("No Results", systemImage: "magnifyingglass")
+        } description: {
+            Text("Nothing to show here yet. Pull to refresh or try again later.")
+        } actions: {
+            Button {
+                Task { await discoverVM.loadInitialData() }
+            } label: {
+                Text("Refresh").fontWeight(.semibold)
             }
             .buttonStyle(.borderedProminent)
         }
