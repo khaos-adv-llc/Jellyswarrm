@@ -73,7 +73,8 @@ public final class PlayerViewModel {
         // request hits the network.
         loadTask?.cancel()
         let task = Task { [weak self] in
-            await self?.performLoadPlayback(for: item, startFromBeginning: startFromBeginning)
+            guard let self else { return }
+            await self.performLoadPlayback(for: item, startFromBeginning: startFromBeginning)
         }
         loadTask = task
         await task.value
