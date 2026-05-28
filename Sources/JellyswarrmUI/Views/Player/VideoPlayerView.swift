@@ -142,9 +142,16 @@ public struct VideoPlayerView: View {
         // engine. The HDR switch is bypassed on tvOS — VideoToolbox
         // tonemaps HDR10/HLG/DV natively on Apple TV hardware, so the
         // Metal renderer is neither needed nor wanted here.
-        if let player {
-            TVPlayerRepresentable(player: player, onDismiss: { performDismiss() })
-                .ignoresSafeArea()
+        if let player, let vm = playerVM {
+            TVPlayerRepresentable(
+                player: player,
+                resumeTicks: vm.positionTicks,
+                onReady: {
+                    Task { @MainActor in await vm.notifyPlaybackStarted() }
+                },
+                onDismiss: { performDismiss() }
+            )
+            .ignoresSafeArea()
         } else if let error = playerVM?.error {
             ZStack {
                 Color.black.ignoresSafeArea()
@@ -321,6 +328,16 @@ public struct VideoPlayerView: View {
         // (and tvOS via the tvOS-specific avFoundationBody branch).
         _ = statusObservation
         _ = tcObservation
+        #if os(tvOS)
+        // On tvOS the seek + play are deferred to TVPlayerRepresentable's
+        // coordinator, which observes AVPlayerViewController.isReadyForDisplay
+        // — same pattern as iOS. Seeking before the layer is attached causes
+        // AVPlayerViewController to reset to 0 once it mounts, and play()
+        // before isReadyForDisplay can leave the view stuck on the loading
+        // shimmer. Assigning `player` here is what triggers the view body to
+        // render TVPlayerRepresentable; the coordinator takes over from there.
+        player = avPlayer
+        #else
         player = avPlayer
         // Seek-based resume for both direct-stream and HLS transcode.
         // Passing StartTimeTicks to Jellyfin breaks AVFoundation playback
@@ -339,6 +356,7 @@ public struct VideoPlayerView: View {
         print("[Resume] Starting from: \(vm.positionTicks) ticks (seek=\(shouldSeek))")
         avPlayer.play()
         await vm.notifyPlaybackStarted()
+        #endif
 
         // Track position every 10s. AVPlayer is already seeked to the
         // resume point, so currentTime IS the true content position.
@@ -585,13 +603,29 @@ public struct VideoPlayerView: View {
     // VideoToolbox on Apple TV, so no Metal renderer is needed here.
     struct TVPlayerRepresentable: UIViewControllerRepresentable {
         let player: AVPlayer
+        let resumeTicks: Int64
+        let onReady: () -> Void
         let onDismiss: () -> Void
 
         func makeUIViewController(context: Context) -> AVPlayerViewController {
             let vc = AVPlayerViewController()
             vc.player = player
+            vc.showsPlaybackControls = true
             vc.allowsPictureInPicturePlayback = true
+            vc.entersFullScreenWhenPlaybackBegins = true
+            vc.exitsFullScreenWhenPlaybackEnds = true
             vc.delegate = context.coordinator
+            // Defer seek + play until AVPlayerViewController reports
+            // isReadyForDisplay. Seeking before the layer is attached makes
+            // AVPlayerViewController snap back to 0 once it mounts, and
+            // calling play() before readyForDisplay can leave the view stuck
+            // on a black/loading screen on tvOS.
+            context.coordinator.attach(
+                playerVC: vc,
+                player: player,
+                resumeTicks: resumeTicks,
+                onReady: onReady
+            )
             return vc
         }
 
@@ -607,8 +641,41 @@ public struct VideoPlayerView: View {
 
         final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
             let onDismiss: () -> Void
+            private var readyObservation: NSKeyValueObservation?
+
             init(onDismiss: @escaping () -> Void) {
                 self.onDismiss = onDismiss
+            }
+
+            func attach(
+                playerVC: AVPlayerViewController,
+                player: AVPlayer,
+                resumeTicks: Int64,
+                onReady: @escaping () -> Void
+            ) {
+                let resumeSeconds = Double(resumeTicks) / 10_000_000.0
+                let observation = playerVC.observe(\.isReadyForDisplay, options: [.new, .initial]) { [weak self, weak player] _, change in
+                    guard change.newValue == true, let player = player else { return }
+                    print("[Player] tvOS AVPlayerViewController readyForDisplay ✓")
+                    self?.readyObservation = nil
+                    if resumeTicks > 0, resumeSeconds > 5.0 {
+                        let resumeTime = CMTime(value: resumeTicks, timescale: 10_000_000)
+                        print("[Player] tvOS seeking to resume \(resumeTicks) ticks (\(resumeSeconds)s)")
+                        player.seek(
+                            to: resumeTime,
+                            toleranceBefore: .zero,
+                            toleranceAfter: .zero
+                        ) { finished in
+                            player.play()
+                            print("[Player] tvOS resumed from \(resumeSeconds)s (seek finished=\(finished))")
+                        }
+                    } else {
+                        player.play()
+                        print("[Player] tvOS playing from start")
+                    }
+                    onReady()
+                }
+                self.readyObservation = observation
             }
 
             func playerViewControllerWillBeginDismissalTransition(_: AVPlayerViewController) {
