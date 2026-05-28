@@ -24,9 +24,16 @@ public final class PlayerViewModel {
     public var audioStreamIndex: Int?
     public var subtitleStreamIndex: Int?
 
+    // Current chapter name (updated by periodic time observer)
+    public var currentChapterName: String?
+
     // Progress reporting
     private var reportingTask: Task<Void, Never>?
     private let reportingInterval: TimeInterval = 10 // seconds
+
+    // Chapter observer
+    private var chapterObserverToken: Any?
+    private weak var chapterObserverPlayer: AVPlayer?
 
     private let appState: AppState
     private let api = JellyfinAPIClient.shared
@@ -175,6 +182,7 @@ public final class PlayerViewModel {
 
     public func stop() async {
         reportingTask?.cancel()
+        stopChapterObserver()
         guard let item = currentItem,
               let source = selectedSource,
               let server = appState.currentServer,
@@ -216,20 +224,41 @@ public final class PlayerViewModel {
 
     // MARK: - Chapter Metadata
 
-    /// Apply chapters from the current item as `AVTimedMetadataGroup` navigation markers
-    /// so `AVPlayerViewController` shows chapter names natively while scrubbing.
+    /// Configures an `AVPlayerItem` for playback. Currently only removes any
+    /// artificial peak-bitrate cap so HDR / Dolby Vision direct play uses full bitrate.
     public func configurePlayerItem(_ playerItem: AVPlayerItem) {
         playerItem.preferredPeakBitRate = 0
-        guard let chapters = currentItem?.chapters, !chapters.isEmpty else { return }
-        #if os(iOS) || os(tvOS)
-        setChapterMetadata(chapters: chapters, on: playerItem)
-        #endif
     }
 
-    public func chapterName(forTicks ticks: Int64, chapters: [ChapterInfo]) -> String? {
+    /// Returns the chapter name for the given playback position ticks, or nil if no chapters.
+    public func currentChapterName(atTicks ticks: Int64, chapters: [ChapterInfo]) -> String? {
         chapters
             .filter { ($0.startPositionTicks ?? 0) <= ticks }
             .last?.name
+    }
+
+    /// Installs a 1-second periodic time observer that updates
+    /// `currentChapterName` as playback progresses.
+    public func startChapterObserver(on player: AVPlayer, chapters: [ChapterInfo]) {
+        stopChapterObserver()
+        guard !chapters.isEmpty else { return }
+        chapterObserverPlayer = player
+        chapterObserverToken = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 1, preferredTimescale: 600),
+            queue: .main
+        ) { [weak self] time in
+            let ticks = Int64(time.seconds * 10_000_000)
+            self?.currentChapterName = self?.currentChapterName(atTicks: ticks, chapters: chapters)
+        }
+    }
+
+    public func stopChapterObserver() {
+        if let token = chapterObserverToken {
+            chapterObserverPlayer?.removeTimeObserver(token)
+        }
+        chapterObserverToken = nil
+        chapterObserverPlayer = nil
+        currentChapterName = nil
     }
 
     // MARK: - URL Helpers

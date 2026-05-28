@@ -32,6 +32,23 @@ public struct VideoPlayerView: View {
                 // - Supports Picture-in-Picture and AirPlay out of the box
                 SystemPlayerView(player: player, onDismiss: { dismiss() })
                     .ignoresSafeArea()
+
+                #if os(iOS)
+                if let chapterName = playerVM.currentChapterName {
+                    VStack {
+                        Spacer()
+                        Text(chapterName)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 4)
+                            .background(.black.opacity(0.4), in: Capsule())
+                            .transition(.opacity)
+                            .padding(.bottom, 120)
+                    }
+                    .allowsHitTesting(false)
+                }
+                #endif
             } else if playerVM.isLoading {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -76,9 +93,13 @@ public struct VideoPlayerView: View {
                 }
                 avPlayer.play()
                 playerVM.isPlaying = true
+                if let chapters = playerVM.currentItem?.chapters, !chapters.isEmpty {
+                    playerVM.startChapterObserver(on: avPlayer, chapters: chapters)
+                }
             }
         }
         .onDisappear {
+            playerVM.stopChapterObserver()
             Task { await playerVM.stop() }
             player?.pause()
             player = nil
