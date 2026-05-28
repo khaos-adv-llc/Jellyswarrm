@@ -132,8 +132,12 @@ public final class PlayerViewModel {
                     server: server,
                     token: token
                 )
-                // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD)
+                // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD).
+                // Must await start() to avoid race where proxyURL() is called before
+                // the listener has bound to a port (port=0 → AVPlayer fails instantly).
                 if let hlsURL {
+                    _ = try? await HLSProxyServer.shared.start()
+                    print("[HLSProxy] Ready on port \(await HLSProxyServer.shared.port), building proxy URL")
                     playbackURL = await HLSProxyServer.shared.proxyURL(for: hlsURL) ?? hlsURL
                 } else {
                     playbackURL = nil

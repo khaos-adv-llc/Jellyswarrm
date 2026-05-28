@@ -59,6 +59,10 @@ public actor HLSProxyServer {
 
     /// Rewrite a Jellyfin HLS URL to go through the proxy.
     public func proxyURL(for originalURL: URL) -> URL? {
+        guard port > 0 else {
+            print("[HLSProxy] ERROR: proxyURL called before proxy started (port=0)")
+            return nil
+        }
         guard var components = URLComponents(url: originalURL, resolvingAgainstBaseURL: false) else { return nil }
         let originalScheme = originalURL.scheme ?? "https"
         let originalHost = originalURL.host ?? ""
