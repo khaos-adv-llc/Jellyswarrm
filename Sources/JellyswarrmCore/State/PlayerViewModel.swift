@@ -67,11 +67,16 @@ public final class PlayerViewModel {
 
     public func loadPlayback(for item: MediaItem, startFromBeginning: Bool = false) async {
         // SwiftUI may re-run .task and call loadPlayback twice concurrently.
-        // Cancel any prior in-flight load and replace it with a single new
-        // task — both racing callers then await the same Task and the prior
-        // PlaybackInfo + transcode session work is dropped before the second
-        // request hits the network.
+        // Cancel any prior in-flight load and tear down its session BEFORE
+        // creating the new task. Doing the stop() inside the new task races
+        // with the old task's player setup — the new task's stop() can fire
+        // after the new player is already presented, tearing it down.
         loadTask?.cancel()
+        loadTask = nil
+        if hasStartedPlayback || isHLSTranscode || playbackURL != nil {
+            await stop()
+        }
+
         let task = Task { [weak self] in
             guard let self else { return }
             await self.performLoadPlayback(for: item, startFromBeginning: startFromBeginning)
@@ -81,14 +86,6 @@ public final class PlayerViewModel {
     }
 
     private func performLoadPlayback(for item: MediaItem, startFromBeginning: Bool) async {
-        if Task.isCancelled { return }
-
-        // Tear down any existing session before starting a new one. Without
-        // this, a previous session's HLSProxyServer listener can stay bound
-        // (port != 0) and the new session would inherit a stale port.
-        if hasStartedPlayback || isHLSTranscode || playbackURL != nil {
-            await stop()
-        }
         if Task.isCancelled { return }
 
         guard let server = appState.currentServer,
