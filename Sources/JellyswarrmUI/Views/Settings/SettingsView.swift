@@ -13,9 +13,41 @@ public struct SettingsView: View {
     @State private var showAddSeerr = false
     @State private var showSignOutConfirm = false
 
+    private var fadeBackground: Color {
+        #if os(macOS)
+            return Color(nsColor: .windowBackgroundColor)
+        #else
+            return Color(uiColor: .systemBackground)
+        #endif
+    }
+
     public var body: some View {
         NavigationStack {
-            Form {
+            ZStack {
+                formContent
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [fadeBackground, .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 32)
+                    Spacer()
+                    LinearGradient(
+                        colors: [.clear, fadeBackground],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 48)
+                }
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var formContent: some View {
+        Form {
                 // MARK: Jellyfin Servers
 
                 Section("Jellyfin Servers") {
@@ -148,7 +180,6 @@ public struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             }
-        }
     }
 }
 

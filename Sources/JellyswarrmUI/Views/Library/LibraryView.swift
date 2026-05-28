@@ -99,20 +99,23 @@ public struct LibrarySectionView: View {
     @State private var sortOrder = "Ascending"
 
     private let pageSize = 50
-    private let columns = [GridItem(.adaptive(minimum: 130, maximum: 180), spacing: 12)]
+    private let cardWidth: CGFloat = 130
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: cardWidth, maximum: cardWidth), spacing: 12, alignment: .top)]
+    }
 
     public var body: some View {
         ScrollView {
             if isLoading, items.isEmpty {
                 ProgressView().padding(.top, 80)
             } else {
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                     ForEach(items) { item in
                         NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
                             MediaCardView(
                                 item: item,
                                 imageURL: libraryVM.imageURL(for: item, type: .primary, maxWidth: 300),
-                                cardWidth: 130
+                                cardWidth: cardWidth
                             )
                         }
                         .buttonStyle(.plain)

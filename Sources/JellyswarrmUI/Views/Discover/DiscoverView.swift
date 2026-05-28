@@ -413,6 +413,6 @@ public struct DiscoverView: View {
     }
 
     private var gridColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: gridCardWidth, maximum: gridCardWidth + 60), spacing: 12)]
+        [GridItem(.adaptive(minimum: gridCardWidth, maximum: gridCardWidth), spacing: 12, alignment: .top)]
     }
 }

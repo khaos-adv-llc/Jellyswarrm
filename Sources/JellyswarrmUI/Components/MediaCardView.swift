@@ -22,7 +22,7 @@ public struct MediaCardView: View {
     #if os(tvOS)
         @FocusState private var isFocused: Bool
     #else
-        @State private var isFocused: Bool = false
+        @State private var isHovered: Bool = false
     #endif
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
@@ -35,12 +35,20 @@ public struct MediaCardView: View {
             }
         }
         .frame(width: cardWidth)
+        .contentShape(Rectangle())
         #if os(tvOS)
             .focusable()
             .focused($isFocused)
-            .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(radius: isFocused ? 20 : 0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+            .scaleEffect(isFocused ? 1.05 : 1.0)
+            .zIndex(isFocused ? 1 : 0)
+            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+        #else
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .zIndex(isHovered ? 1 : 0)
+            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
+            .onHover { isHovered = $0 }
         #endif
     }
 
@@ -75,6 +83,7 @@ public struct MediaCardView: View {
                 watchedBadge
             }
         }
+        .frame(width: cardWidth, height: cardHeight)
     }
 
     private func progressOverlay(fraction: Double) -> some View {
@@ -119,14 +128,14 @@ public struct MediaCardView: View {
             Text(item.displayTitle)
                 .font(.caption)
                 .fontWeight(.medium)
-                .lineLimit(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundStyle(.primary)
 
-            if let year = item.productionYear {
-                Text(String(year))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            Text(item.productionYear.map(String.init) ?? " ")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
         .frame(width: cardWidth, alignment: .leading)
     }
@@ -152,7 +161,7 @@ public struct SeerrMediaCardView: View {
     #if os(tvOS)
         @FocusState private var isFocused: Bool
     #else
-        @State private var isFocused: Bool = false
+        @State private var isHovered: Bool = false
     #endif
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
@@ -179,27 +188,37 @@ public struct SeerrMediaCardView: View {
                 statusBadge
                     .padding(8)
             }
+            .frame(width: cardWidth, height: cardHeight)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-                if let year {
-                    Text(year)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                Text(year ?? " ")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .frame(width: cardWidth, alignment: .leading)
         }
         .frame(width: cardWidth)
+        .contentShape(Rectangle())
         #if os(tvOS)
             .focusable()
             .focused($isFocused)
-            .scaleEffect(isFocused ? 1.08 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isFocused)
+            .scaleEffect(isFocused ? 1.05 : 1.0)
+            .zIndex(isFocused ? 1 : 0)
+            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+        #else
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .zIndex(isHovered ? 1 : 0)
+            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
+            .onHover { isHovered = $0 }
         #endif
     }
 
