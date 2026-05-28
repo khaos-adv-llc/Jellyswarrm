@@ -69,17 +69,42 @@ public struct SearchView: View {
             .onChange(of: searchVM.query) { _, newValue in
                 searchVM.queryChanged(newValue)
             }
-            .sheet(item: $selectedSeerrResult) { result in
-                switch result {
-                case let .movie(m):
-                    SeerrDetailView(movie: m)
-                        .environment(DiscoverViewModel(appState: appState))
-                case let .tv(t):
-                    SeerrDetailView(tv: t)
-                        .environment(DiscoverViewModel(appState: appState))
-                case .person:
-                    EmptyView()
+            #if os(tvOS)
+                .navigationDestination(isPresented: Binding(
+                    get: { selectedSeerrResult != nil },
+                    set: { newValue in if !newValue { selectedSeerrResult = nil } }
+                )) {
+                    seerrDetailDestination
                 }
+            #else
+                .sheet(item: $selectedSeerrResult) { result in
+                    switch result {
+                    case let .movie(m):
+                        SeerrDetailView(movie: m)
+                            .environment(DiscoverViewModel(appState: appState))
+                    case let .tv(t):
+                        SeerrDetailView(tv: t)
+                            .environment(DiscoverViewModel(appState: appState))
+                    case .person:
+                        EmptyView()
+                    }
+                }
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var seerrDetailDestination: some View {
+        if let result = selectedSeerrResult {
+            switch result {
+            case let .movie(m):
+                SeerrDetailView(movie: m)
+                    .environment(DiscoverViewModel(appState: appState))
+            case let .tv(t):
+                SeerrDetailView(tv: t)
+                    .environment(DiscoverViewModel(appState: appState))
+            case .person:
+                EmptyView()
             }
         }
     }

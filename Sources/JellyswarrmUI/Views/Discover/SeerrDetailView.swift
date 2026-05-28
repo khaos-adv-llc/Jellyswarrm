@@ -24,11 +24,22 @@ public struct SeerrDetailView: View {
     @State private var isLoadingRecs = true
     @State private var selectedRec: RecTarget?
 
-    private enum RecTarget: Identifiable {
+    private enum RecTarget: Identifiable, Hashable {
         case movie(SeerrMovieResult)
         case tv(SeerrTvResult)
-        var id: Int {
-            switch self { case let .movie(m): return m.id; case let .tv(t): return t.id }
+        var id: String {
+            switch self {
+            case let .movie(m): return "m\(m.id)"
+            case let .tv(t): return "t\(t.id)"
+            }
+        }
+
+        static func == (lhs: RecTarget, rhs: RecTarget) -> Bool {
+            lhs.id == rhs.id
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(id)
         }
     }
 
@@ -51,98 +62,141 @@ public struct SeerrDetailView: View {
     private var isTV: Bool { tv != nil }
 
     public var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    // Backdrop
-                    ZStack(alignment: .bottomLeading) {
-                        AsyncImage(url: backdropURL ?? posterURL) { phase in
-                            if case let .success(image) = phase {
-                                image.resizable()
-                                    .aspectRatio(16 / 9, contentMode: .fill)
-                            } else {
-                                Rectangle().fill(Color.gray.opacity(0.2))
-                            }
+        #if os(tvOS)
+            // On tvOS this view is pushed inside the parent's NavigationStack,
+            // so we omit the wrapping stack to avoid nesting.
+            detailContent
+        #else
+            NavigationStack {
+                detailContent
+            }
+        #endif
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                // Backdrop
+                ZStack(alignment: .bottomLeading) {
+                    AsyncImage(url: backdropURL ?? posterURL) { phase in
+                        if case let .success(image) = phase {
+                            image.resizable()
+                                .aspectRatio(16 / 9, contentMode: .fill)
+                        } else {
+                            Rectangle().fill(Color.gray.opacity(0.2))
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 260)
-                        .clipped()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: backdropHeight)
+                    .clipped()
 
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.8)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 260)
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.8)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: backdropHeight)
 
-                        Text(title)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding()
-                            .shadow(radius: 6)
+                    Text(title)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding()
+                        .shadow(radius: 6)
+                }
+
+                VStack(alignment: .leading, spacing: 24) {
+                    // Metadata row
+                    HStack(spacing: 10) {
+                        if let year { badge(year, icon: "calendar") }
+                        if let rating { badge(String(format: "%.1f ★", rating), icon: nil).foregroundStyle(.yellow)
+                        }
+                        if let status = mediaInfo?.status {
+                            availabilityBadge(status)
+                        }
+                    }
+                    .font(.caption)
+
+                    // Overview
+                    if let ov = overview {
+                        Text(ov)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
 
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Metadata row
-                        HStack(spacing: 10) {
-                            if let year { badge(year, icon: "calendar") }
-                            if let rating { badge(String(format: "%.1f ★", rating), icon: nil).foregroundStyle(.yellow)
-                            }
-                            if let status = mediaInfo?.status {
-                                availabilityBadge(status)
-                            }
-                        }
-                        .font(.caption)
+                    // Request / Status section
+                    requestSection
 
-                        // Overview
-                        if let ov = overview {
-                            Text(ov)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        // Request / Status section
-                        requestSection
-
-                        recommendationsSection
-                    }
-                    .padding()
+                    recommendationsSection
+                }
+                .padding(contentPadding)
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+        #if !os(tvOS)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
-            .ignoresSafeArea(edges: .top)
-            #if !os(tvOS)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { dismiss() }
-                    }
+            .sheet(isPresented: $showRequestForm) {
+                RequestFormView(
+                    mediaId: mediaId,
+                    title: title,
+                    isTV: isTV,
+                    posterURL: posterURL
+                )
+                .environment(discoverVM)
+            }
+            .sheet(item: $selectedRec) { target in
+                switch target {
+                case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)
+                case let .tv(t): SeerrDetailView(tv: t).environment(discoverVM)
                 }
-            #endif
-                .sheet(isPresented: $showRequestForm) {
-                    RequestFormView(
-                        mediaId: mediaId,
-                        title: title,
-                        isTV: isTV,
-                        posterURL: posterURL
-                    )
-                    .environment(discoverVM)
+            }
+        #else
+            .navigationDestination(isPresented: $showRequestForm) {
+                RequestFormView(
+                    mediaId: mediaId,
+                    title: title,
+                    isTV: isTV,
+                    posterURL: posterURL
+                )
+                .environment(discoverVM)
+            }
+            .navigationDestination(item: $selectedRec) { target in
+                switch target {
+                case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)
+                case let .tv(t): SeerrDetailView(tv: t).environment(discoverVM)
                 }
-                .sheet(item: $selectedRec) { target in
-                    switch target {
-                    case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)
-                    case let .tv(t): SeerrDetailView(tv: t).environment(discoverVM)
-                    }
+            }
+        #endif
+            .task(id: mediaId) {
+                isLoadingRecs = true
+                if isTV {
+                    tvRecs = await discoverVM.fetchTVRecommendations(tvId: mediaId)
+                } else {
+                    movieRecs = await discoverVM.fetchMovieRecommendations(movieId: mediaId)
                 }
-                .task(id: mediaId) {
-                    isLoadingRecs = true
-                    if isTV {
-                        tvRecs = await discoverVM.fetchTVRecommendations(tvId: mediaId)
-                    } else {
-                        movieRecs = await discoverVM.fetchMovieRecommendations(movieId: mediaId)
-                    }
-                    isLoadingRecs = false
-                }
-        }
+                isLoadingRecs = false
+            }
+    }
+
+    private var contentPadding: CGFloat {
+        #if os(tvOS)
+            return 48
+        #else
+            return 16
+        #endif
+    }
+
+    private var backdropHeight: CGFloat {
+        #if os(tvOS)
+            return 480
+        #else
+            return 260
+        #endif
     }
 
     // MARK: - Recommendations Section
@@ -344,11 +398,22 @@ public struct RequestFormView: View {
     private var show4kToggle: Bool { canRequest4k && is4kEnabledOnServer }
 
     public var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Poster + title
-                    HStack(spacing: 16) {
+        #if os(tvOS)
+            // Pushed into the parent's NavigationStack on tvOS — no inner stack.
+            requestContent
+        #else
+            NavigationStack {
+                requestContent
+            }
+        #endif
+    }
+
+    @ViewBuilder
+    private var requestContent: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Poster + title
+                HStack(spacing: 16) {
                         AsyncImage(url: posterURL) { phase in
                             if case let .success(img) = phase {
                                 img.resizable()
@@ -393,18 +458,9 @@ public struct RequestFormView: View {
                                     .foregroundStyle(.secondary)
                                     .padding(.horizontal)
 
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 70))], spacing: 10) {
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: seasonPillMinWidth))], spacing: 10) {
                                     ForEach(availableSeasons, id: \.self) { season in
-                                        Toggle("S\(season)", isOn: Binding(
-                                            get: { selectedSeasons.contains(season) },
-                                            set: { checked in
-                                                if checked { selectedSeasons.insert(season) }
-                                                else { selectedSeasons.remove(season) }
-                                            }
-                                        ))
-                                        #if !os(tvOS)
-                                            .toggleStyle(.button)
-                                        #endif
+                                        seasonPill(season: season)
                                     }
                                 }
                                 .padding(.horizontal)
@@ -454,8 +510,42 @@ public struct RequestFormView: View {
                     }
                 }
             #endif
-                .task { await loadQualityOptions() }
+            .task { await loadQualityOptions() }
+    }
+
+    private var seasonPillMinWidth: CGFloat {
+        #if os(tvOS)
+            return 140
+        #else
+            return 70
+        #endif
+    }
+
+    @ViewBuilder
+    private func seasonPill(season: Int) -> some View {
+        let isSelected = selectedSeasons.contains(season)
+        Button {
+            if isSelected {
+                selectedSeasons.remove(season)
+            } else {
+                selectedSeasons.insert(season)
+            }
+        } label: {
+            Text("Season \(season)")
+                .font(.callout)
+                .fontWeight(.medium)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(isSelected ? Color.accentColor : Color.gray.opacity(0.2))
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .clipShape(Capsule())
         }
+        #if os(tvOS)
+            .buttonStyle(.card)
+        #else
+            .buttonStyle(.plain)
+        #endif
     }
 
     @ViewBuilder

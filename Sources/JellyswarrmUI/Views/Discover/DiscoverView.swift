@@ -15,11 +15,22 @@ public struct DiscoverView: View {
 
     @State private var selectedResult: DiscoverDetailTarget?
 
-    enum DiscoverDetailTarget: Identifiable {
+    enum DiscoverDetailTarget: Identifiable, Hashable {
         case movie(SeerrMovieResult)
         case tv(SeerrTvResult)
-        var id: Int {
-            switch self { case let .movie(m): return m.id; case let .tv(t): return t.id }
+        var id: String {
+            switch self {
+            case let .movie(m): return "m\(m.id)"
+            case let .tv(t): return "t\(t.id)"
+            }
+        }
+
+        static func == (lhs: DiscoverDetailTarget, rhs: DiscoverDetailTarget) -> Bool {
+            lhs.id == rhs.id
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(id)
         }
     }
 
@@ -44,12 +55,21 @@ public struct DiscoverView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Discover")
-            .sheet(item: $selectedResult) { target in
-                switch target {
-                case let .movie(m): SeerrDetailView(movie: m)
-                case let .tv(t): SeerrDetailView(tv: t)
+            #if os(tvOS)
+                .navigationDestination(item: $selectedResult) { target in
+                    switch target {
+                    case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)
+                    case let .tv(t): SeerrDetailView(tv: t).environment(discoverVM)
+                    }
                 }
-            }
+            #else
+                .sheet(item: $selectedResult) { target in
+                    switch target {
+                    case let .movie(m): SeerrDetailView(movie: m)
+                    case let .tv(t): SeerrDetailView(tv: t)
+                    }
+                }
+            #endif
             .task(id: appState.seerrServer?.id) {
                 guard appState.hasSeerrConfigured,
                       discoverVM.trendingItems.isEmpty,
