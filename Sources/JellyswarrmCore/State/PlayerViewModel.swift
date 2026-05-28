@@ -13,6 +13,10 @@ public final class PlayerViewModel {
     public var playbackInfo: PlaybackInfo?
     public var selectedSource: MediaSource?
     public var playbackURL: URL?
+    /// True when `playbackURL` points to a Jellyfin HLS transcode (main.m3u8).
+    /// The HLS resource loader must be attached only in this case to bypass
+    /// Jellyfin's HTTP 405 on HEAD requests for segment URLs.
+    public var isHLSTranscode: Bool = false
     public var positionTicks: Int64 = 0
     public var durationTicks: Int64 = 0
     public var isPlaying: Bool = false
@@ -128,10 +132,12 @@ public final class PlayerViewModel {
                     server: server,
                     token: token
                 )
+                isHLSTranscode = true
                 print("[Player] Using HLS TS transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
+                isHLSTranscode = false
                 print("[Player] Using server-provided stream URL")
             } else if resolvedSource.supportsDirectStream {
                 // Jellyfin didn't return a URL but says direct stream is supported.
@@ -143,6 +149,7 @@ public final class PlayerViewModel {
                     audioIndex: chosenAudio,
                     subtitleIndex: chosenSub
                 )
+                isHLSTranscode = false
                 print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
             } else {
                 print("[Player] ERROR: no playback path available")
@@ -225,6 +232,7 @@ public final class PlayerViewModel {
         isPlaying = false
         currentItem = nil
         playbackURL = nil
+        isHLSTranscode = false
         isLoading = false
         _loadingStarted = false
     }

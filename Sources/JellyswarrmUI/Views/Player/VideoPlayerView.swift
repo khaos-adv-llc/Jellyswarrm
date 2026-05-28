@@ -17,6 +17,8 @@ public struct VideoPlayerView: View {
     @State private var controlsVisible: Bool = false
     #if os(iOS)
     @State private var didPresent: Bool = false
+    // Strong reference for AVAssetResourceLoader — it holds the delegate weakly.
+    @State private var hlsLoader: HLSResourceLoader?
     #endif
 
     public init(item: MediaItem, startFromBeginning: Bool = false) {
@@ -89,9 +91,33 @@ public struct VideoPlayerView: View {
                 return
             }
 
-            let asset = AVURLAsset(url: url, options: [
+            let assetURL: URL
+            #if os(iOS)
+            if vm.isHLSTranscode, let customURL = HLSResourceLoader.customSchemeURL(from: url) {
+                assetURL = customURL
+                print("[Player] Using HLS resource loader for transcode URL")
+            } else {
+                assetURL = url
+            }
+            #else
+            assetURL = url
+            #endif
+
+            let asset = AVURLAsset(url: assetURL, options: [
                 AVURLAssetPreferPreciseDurationAndTimingKey: false,
             ])
+
+            #if os(iOS)
+            if vm.isHLSTranscode {
+                let loader = HLSResourceLoader()
+                hlsLoader = loader
+                asset.resourceLoader.setDelegate(
+                    loader,
+                    queue: DispatchQueue(label: "com.jellyswarrm.hlsloader")
+                )
+            }
+            #endif
+
             let playerItem = AVPlayerItem(asset: asset)
             playerItem.preferredForwardBufferDuration = 10
             vm.configurePlayerItem(playerItem)
@@ -153,6 +179,9 @@ public struct VideoPlayerView: View {
             Task { await playerVM.stop() }
             player?.pause()
             player = nil
+            #if os(iOS)
+            hlsLoader = nil
+            #endif
         }
     }
 
