@@ -184,17 +184,32 @@ public final class PlayerViewModel {
             // from the beginning on a fresh transcode for now.
             if startFromBeginning || isHLSTranscode {
                 positionTicks = 0
-            } else if let userData = item.userData, userData.hasProgress {
-                positionTicks = userData.playbackPositionTicks
-                print("[Resume] Server position: \(positionTicks) ticks")
             } else {
-                // Fallback: local backup (UserDefaults.standard, per-process).
-                let localTicks = UserDefaults.standard.double(forKey: "resume_\(item.id)")
-                if localTicks > 0 {
-                    positionTicks = Int64(localTicks)
-                    print("[Resume] Local fallback: \(positionTicks) ticks")
+                // UserData.PlaybackPositionTicks is NOT in the PlaybackInfo
+                // response — it's on the item itself. Fetch the latest item
+                // detail so we get the freshest server-stored resume position
+                // (the MediaItem passed in may be stale from a list endpoint).
+                var serverTicks: Int64 = 0
+                if let detail = try? await api.getItemDetail(server: server, token: token, itemId: item.id),
+                   let userData = detail.userData {
+                    serverTicks = userData.playbackPositionTicks
+                    print("[Resume] Server UserData position: \(serverTicks) ticks for \(item.id)")
                 } else {
-                    print("[Resume] No saved position — starting from beginning")
+                    print("[Resume] Failed to fetch item detail UserData for \(item.id)")
+                }
+
+                if serverTicks > 0 {
+                    positionTicks = serverTicks
+                } else {
+                    // Fallback: local backup (UserDefaults.standard, per-process).
+                    let localRaw = UserDefaults.standard.double(forKey: "resume_\(item.id)")
+                    print("[Resume] Local UserDefaults raw value for resume_\(item.id): \(localRaw)")
+                    if localRaw > 0 {
+                        positionTicks = Int64(localRaw)
+                        print("[Resume] Local fallback: \(positionTicks) ticks")
+                    } else {
+                        print("[Resume] No saved position — starting from beginning")
+                    }
                 }
             }
 
