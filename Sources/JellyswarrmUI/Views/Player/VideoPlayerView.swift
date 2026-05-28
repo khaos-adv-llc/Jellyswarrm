@@ -68,12 +68,21 @@ public struct VideoPlayerView: View {
                 Color.clear
                 #elseif os(macOS)
                 ZStack(alignment: .topLeading) {
-                    SystemPlayerView(
-                        player: player,
-                        onDismiss: { performDismiss() },
-                        onControlsVisibilityChange: { visible in controlsVisible = visible }
-                    )
-                    .ignoresSafeArea()
+                    // Route HDR10 / HLG through the Metal renderer so we get
+                    // proper PQ / HLG tonemapping against the display's EDR
+                    // headroom. Dolby Vision and SDR stay on AVPlayerView —
+                    // VideoToolbox tonemaps DV natively.
+                    if let vm = playerVM, vm.hdrFormat == .hdr10 || vm.hdrFormat == .hlg {
+                        HDRPlayerView(player: player, hdrFormat: vm.hdrFormat)
+                            .ignoresSafeArea()
+                    } else {
+                        SystemPlayerView(
+                            player: player,
+                            onDismiss: { performDismiss() },
+                            onControlsVisibilityChange: { visible in controlsVisible = visible }
+                        )
+                        .ignoresSafeArea()
+                    }
 
                     MouseTrackingView(onMouseMoved: { scheduleHide() })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,12 +103,19 @@ public struct VideoPlayerView: View {
                     .animation(.easeInOut(duration: 0.25), value: showControls)
                 }
                 #else
-                SystemPlayerView(
-                    player: player,
-                    onDismiss: { performDismiss() },
-                    onControlsVisibilityChange: { visible in controlsVisible = visible }
-                )
-                .ignoresSafeArea()
+                // tvOS: route HDR10 / HLG through the Metal renderer; Dolby
+                // Vision and SDR stay on the system AVPlayerViewController.
+                if let vm = playerVM, vm.hdrFormat == .hdr10 || vm.hdrFormat == .hlg {
+                    HDRPlayerView(player: player, hdrFormat: vm.hdrFormat)
+                        .ignoresSafeArea()
+                } else {
+                    SystemPlayerView(
+                        player: player,
+                        onDismiss: { performDismiss() },
+                        onControlsVisibilityChange: { visible in controlsVisible = visible }
+                    )
+                    .ignoresSafeArea()
+                }
                 #endif
             } else if playerVM?.isLoading == true {
                 VStack(spacing: 16) {
@@ -147,6 +163,11 @@ public struct VideoPlayerView: View {
             let asset = AVURLAsset(url: url, options: [
                 AVURLAssetPreferPreciseDurationAndTimingKey: false,
             ])
+
+            // Detect HDR transfer function before constructing the player item
+            // so the view layer can decide between the AVFoundation path and the
+            // Metal HDR renderer on non-iOS platforms.
+            await vm.detectHDR(asset: asset)
 
             let playerItem = AVPlayerItem(asset: asset)
             playerItem.preferredForwardBufferDuration = 10

@@ -18,12 +18,18 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/jellyfin/jellyfin-sdk-swift", from: "2.0.0"),
+        // ffmpeg-kit SPM (maintained kingslay fork of retired Arthenica ffmpeg-kit)
+        // wired for upcoming exotic-format direct play. Actual routing lands in a
+        // follow-up PR — for now we just have the dependency available.
+        // TODO: verify SPM resolution
+        .package(url: "https://github.com/kingslay/FFmpegKit", from: "1.0.0"),
     ],
     targets: [
         .target(
             name: "JellyswarrmCore",
             dependencies: [
                 .product(name: "JellyfinAPI", package: "jellyfin-sdk-swift"),
+                .product(name: "FFmpegKit", package: "FFmpegKit"),
             ],
             path: "Sources/JellyswarrmCore",
             swiftSettings: [
@@ -33,7 +39,10 @@ let package = Package(
         .target(
             name: "JellyswarrmUI",
             dependencies: ["JellyswarrmCore"],
-            path: "Sources/JellyswarrmUI"
+            path: "Sources/JellyswarrmUI",
+            resources: [
+                .process("Metal/HDRToneMap.metal"),
+            ]
         ),
         .testTarget(
             name: "JellyswarrmCoreTests",

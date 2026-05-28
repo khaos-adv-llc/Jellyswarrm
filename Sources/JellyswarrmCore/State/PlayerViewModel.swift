@@ -30,6 +30,11 @@ public final class PlayerViewModel {
     public var audioStreamIndex: Int?
     public var subtitleStreamIndex: Int?
 
+    /// Detected HDR format of the current asset. `.hdr10` / `.hlg` route playback
+    /// through the Metal renderer; `.dolbyVision` / `.sdr` stay on the
+    /// AVFoundation path (VideoToolbox handles DV Profile 5/8 natively).
+    public var hdrFormat: HDRFormat = .sdr
+
     // Task-based mutex for loadPlayback. A Bool guard is not race-free here:
     // SwiftUI can call .task twice in quick succession and both invocations
     // can pass an `await`-suspended guard before either sets the flag. Using
@@ -415,6 +420,14 @@ public final class PlayerViewModel {
     /// artificial peak-bitrate cap so HDR / Dolby Vision direct play uses full bitrate.
     public func configurePlayerItem(_ playerItem: AVPlayerItem) {
         playerItem.preferredPeakBitRate = 0
+    }
+
+    /// Runs HDR transfer-function detection on the asset and publishes the
+    /// result to `hdrFormat`. The view layer reads this to decide between the
+    /// AVFoundation path and the Metal HDR renderer.
+    public func detectHDR(asset: AVAsset) async {
+        hdrFormat = await HDRDetector.detect(asset: asset)
+        print("[Player] HDR detection: \(hdrFormat)")
     }
 
     /// Returns the chapter name for the given playback position ticks, or nil if no chapters.
