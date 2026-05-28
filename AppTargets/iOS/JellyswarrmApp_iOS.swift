@@ -27,9 +27,6 @@ struct JellyswarmApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
-                .task {
-                    appState.loadFromStorage()
-                }
         }
     }
 }

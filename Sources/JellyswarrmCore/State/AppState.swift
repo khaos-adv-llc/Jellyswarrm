@@ -72,6 +72,10 @@ public final class AppState {
                 Task { @MainActor in self?.handleForegroundTransition() }
             }
         #endif
+        // Load persisted server configs and auth state synchronously so that
+        // RootView renders the correct destination on the very first frame —
+        // not onboarding — when the user has already set up the app.
+        loadFromStorage()
     }
 
     // MARK: - tvOS Foreground Transition

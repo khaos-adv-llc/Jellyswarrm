@@ -11,7 +11,9 @@ struct JellyswarmApp: App {
             RootView()
                 .environment(appState)
                 .task {
-                    appState.loadFromStorage()
+                    // loadFromStorage() is called in AppState.init() synchronously.
+                    // checkTVOSUserOnboarding() needs to run after the view tree is
+                    // live so it can trigger the sheet presentation.
                     appState.checkTVOSUserOnboarding()
                 }
         }
