@@ -163,7 +163,11 @@ public struct MediaDetailView: View {
             } else {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(episodes) { episode in
-                        NavigationLink(value: episode) {
+                        NavigationLink {
+                            MediaDetailView(item: episode)
+                                .environment(libraryVM)
+                                .environment(appState)
+                        } label: {
                             episodeRow(episode)
                         }
                         .buttonStyle(.plain)
