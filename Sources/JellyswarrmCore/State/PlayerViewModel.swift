@@ -125,15 +125,21 @@ public final class PlayerViewModel {
                 // through Jellyfin's HLS endpoint using MPEG-TS segments with
                 // H.264 video + AAC audio. AVAudioSession is configured at app
                 // launch so -12860 will not recur.
-                playbackURL = buildHLSTranscodeURL(
+                let hlsURL = buildHLSTranscodeURL(
                     itemId: item.id,
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
                     server: server,
                     token: token
                 )
+                // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD)
+                if let hlsURL {
+                    playbackURL = await HLSProxyServer.shared.proxyURL(for: hlsURL) ?? hlsURL
+                } else {
+                    playbackURL = nil
+                }
                 isHLSTranscode = true
-                print("[Player] Using HLS TS transcode URL: \(playbackURL?.absoluteString ?? "-")")
+                print("[Player] HLS proxy URL: \(playbackURL?.absoluteString ?? "-")")
             } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
@@ -158,8 +164,11 @@ public final class PlayerViewModel {
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
 
-            // Resume from last position unless caller asked to restart
-            if startFromBeginning {
+            // Resume from last position unless caller asked to restart, or
+            // we're using HLS transcode. AVPlayer was jumping to segment 124
+            // (~6 min) on HLS due to a stale resume timestamp — always start
+            // from the beginning on a fresh transcode for now.
+            if startFromBeginning || isHLSTranscode {
                 positionTicks = 0
             } else if let userData = item.userData, userData.hasProgress {
                 positionTicks = userData.playbackPositionTicks

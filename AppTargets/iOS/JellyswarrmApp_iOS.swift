@@ -21,6 +21,10 @@ struct JellyswarmApp: App {
             // Non-fatal — log and continue. Playback may still work in foreground.
             print("[AudioSession] Failed to configure: \(error)")
         }
+
+        Task {
+            try? await HLSProxyServer.shared.start()
+        }
     }
 
     var body: some Scene {
