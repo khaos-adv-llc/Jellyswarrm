@@ -30,6 +30,12 @@ public final class PlayerViewModel {
     /// handing the URL to AVPlayer (avoids -12860 media services crash).
     public private(set) var requiresTranscodeWarmup: Bool = false
 
+    // Synchronous mutex for loadPlayback. `@Observable` properties have async
+    // observation semantics — two concurrent callers can both see isLoading
+    // == false before either sets it true. A plain stored Bool gives us
+    // atomic test-and-set on the main actor.
+    private var _loadingStarted: Bool = false
+
     // Current chapter name (updated by periodic time observer)
     public var currentChapterName: String?
 
@@ -55,7 +61,9 @@ public final class PlayerViewModel {
         // twice concurrently. Two PlaybackInfo POSTs + two transcode sessions
         // confuses Jellyfin and contributes to AVPlayer hitting an empty
         // segment 0 (FigPlayer_MediaServiceDied / -12860).
-        guard !isLoading, playbackURL == nil else { return }
+        guard !_loadingStarted else { return }
+        _loadingStarted = true
+        defer { if playbackURL == nil { _loadingStarted = false } }
 
         guard let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
@@ -249,6 +257,8 @@ public final class PlayerViewModel {
         isPlaying = false
         currentItem = nil
         playbackURL = nil
+        isLoading = false
+        _loadingStarted = false
     }
 
     // MARK: - Computed
