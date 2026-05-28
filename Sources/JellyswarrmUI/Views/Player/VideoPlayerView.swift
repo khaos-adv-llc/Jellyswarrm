@@ -166,7 +166,7 @@ public struct VideoPlayerView: View {
         playerVC.showsPlaybackControls = true
         playerVC.videoGravity = .resizeAspect
         playerVC.allowsPictureInPicturePlayback = true
-        playerVC.updatesNowPlayingInfoCenter = true
+        playerVC.updatesNowPlayingInfoCenter = false
         playerVC.modalPresentationStyle = .fullScreen
         playerVC.entersFullScreenWhenPlaybackBegins = true
         playerVC.exitsFullScreenWhenPlaybackEnds = true
@@ -176,6 +176,32 @@ public struct VideoPlayerView: View {
             print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
         }
         playerVC.readyObservation = readyObservation
+
+        // iOS 26 beta: after seek completes, AVPlayerViewController's controls
+        // auto-hide timer fails to re-arm and the scrub bar stays visible. Watch
+        // timeControlStatus transition from waiting → playing (the signature of
+        // a seek completing) and force a controls reset to re-arm the timer.
+        playerVC.seekStatusObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak playerVC] p, _ in
+            DispatchQueue.main.async {
+                guard let vc = playerVC else { return }
+                switch p.timeControlStatus {
+                case .waitingToPlayAtSpecifiedRate:
+                    vc.wasSeekingOrWaiting = true
+                case .playing:
+                    if vc.wasSeekingOrWaiting {
+                        vc.wasSeekingOrWaiting = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak vc] in
+                            vc?.showsPlaybackControls = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak vc] in
+                                vc?.showsPlaybackControls = true
+                            }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+        }
 
         guard let root = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
@@ -204,6 +230,8 @@ public struct VideoPlayerView: View {
 private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
     var onDismissed: (() -> Void)?
     var readyObservation: NSKeyValueObservation?
+    var seekStatusObservation: NSKeyValueObservation?
+    var wasSeekingOrWaiting: Bool = false
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
