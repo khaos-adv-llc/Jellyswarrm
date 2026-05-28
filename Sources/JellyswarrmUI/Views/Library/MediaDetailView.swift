@@ -75,6 +75,10 @@ public struct MediaDetailView: View {
         #if !os(tvOS) && !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+        .navigationDestination(for: MediaItem.self) { item in
+            MediaDetailView(item: item)
+                .environment(libraryVM)
+        }
         .task {
             detail = try? await libraryVM.getDetail(for: item.id)
             isLoading = false
