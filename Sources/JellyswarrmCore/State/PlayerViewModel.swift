@@ -432,6 +432,14 @@ public final class PlayerViewModel {
         server: JellyfinServer,
         token: String
     ) -> URL? {
+        // Always request H.264 output — even for HEVC sources.
+        // HEVC passthrough via stream.mp4 fails on iOS debug builds because
+        // VideoToolbox HEVC hardware decode requires a release-signed binary.
+        // H.264 is software-decodable and works in all signing contexts.
+        // On release builds with proper entitlements, Jellyfin will still
+        // receive the HEVC source and produce H.264+AAC output efficiently.
+        let outputVideoCodec = "h264"
+
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
@@ -441,9 +449,10 @@ public final class PlayerViewModel {
             URLQueryItem(name: "MediaSourceId", value: source.id),
             URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
             URLQueryItem(name: "api_key", value: token),
-            URLQueryItem(name: "VideoCodec", value: videoCodec),
+            URLQueryItem(name: "VideoCodec", value: outputVideoCodec),
             URLQueryItem(name: "AudioCodec", value: "aac"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
+            URLQueryItem(name: "MaxVideoBitrate", value: "8000000"),
             URLQueryItem(name: "Static", value: "false"),
         ]
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
