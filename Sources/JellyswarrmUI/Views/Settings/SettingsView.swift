@@ -126,6 +126,9 @@ public struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            #if os(tvOS)
+                .padding(.top, 40)
+            #endif
             .sheet(isPresented: $showAddServer) {
                 ServerSetupView()
             }
