@@ -47,29 +47,40 @@ public struct MainTabView: View {
                     Label("Home", systemImage: "house.fill")
                 }
                 .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             LibraryView()
                 .tabItem {
                     Label("Library", systemImage: "film.stack")
                 }
                 .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             DiscoverView()
                 .tabItem {
                     Label("Discover", systemImage: "sparkles.tv")
                 }
+                .environment(libraryVM)
                 .environment(discoverVM)
+                .environment(searchVM)
 
             SearchView()
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
                 }
+                .environment(libraryVM)
+                .environment(discoverVM)
                 .environment(searchVM)
 
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
         }
         .environment(libraryVM)
         .environment(discoverVM)
@@ -83,18 +94,33 @@ public struct MainTabView: View {
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             LibraryView()
                 .tabItem { Label("Library", systemImage: "film.stack") }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             DiscoverView()
                 .tabItem { Label("Discover", systemImage: "sparkles.tv") }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             SearchView()
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
 
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .environment(libraryVM)
+                .environment(discoverVM)
+                .environment(searchVM)
         }
         .environment(libraryVM)
         .environment(discoverVM)
