@@ -110,26 +110,73 @@ public struct VideoPlayerView: View {
         let onDismiss: () -> Void
 
         func makeUIViewController(context: Context) -> AVPlayerViewController {
-            let vc = AVPlayerViewController()
-            vc.player = player
-            vc.allowsPictureInPicturePlayback = true
-            vc.showsPlaybackControls = true
-            // Coordinator handles the Done button dismiss
-            vc.delegate = context.coordinator
-            return vc
+            let playerVC = AVPlayerViewController()
+            playerVC.player = player
+            playerVC.showsPlaybackControls = true
+            playerVC.videoGravity = .resizeAspect
+            playerVC.allowsPictureInPicturePlayback = true
+            playerVC.updatesNowPlayingInfoCenter = true
+            playerVC.entersFullScreenWhenPlaybackBegins = false
+            playerVC.delegate = context.coordinator
+
+            #if os(iOS)
+                // Fallback for the UIKit idle-timer bug when AVPlayerViewController
+                // is hosted by SwiftUI: a transparent single-tap recognizer toggles
+                // showsPlaybackControls and schedules a manual auto-hide. UseHandled
+                // so we don't swallow taps the system controls need (they sit above
+                // the contentOverlayView).
+                let tap = UITapGestureRecognizer(
+                    target: context.coordinator,
+                    action: #selector(Coordinator.handleTap)
+                )
+                tap.cancelsTouchesInView = false
+                tap.delegate = context.coordinator
+                playerVC.contentOverlayView?.addGestureRecognizer(tap)
+                context.coordinator.playerVC = playerVC
+            #endif
+
+            return playerVC
         }
 
-        func updateUIViewController(_ vc: AVPlayerViewController, context _: Context) {
-            vc.player = player
+        func updateUIViewController(_ playerVC: AVPlayerViewController, context _: Context) {
+            if playerVC.player !== player {
+                playerVC.player = player
+            }
         }
 
         func makeCoordinator() -> Coordinator {
             Coordinator(onDismiss: onDismiss)
         }
 
-        final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        final class Coordinator: NSObject, AVPlayerViewControllerDelegate, UIGestureRecognizerDelegate {
             let onDismiss: () -> Void
+            weak var playerVC: AVPlayerViewController?
+            private var hideTask: Task<Void, Never>?
+
             init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
+
+            #if os(iOS)
+                @objc func handleTap() {
+                    guard let playerVC else { return }
+                    let willShow = !playerVC.showsPlaybackControls
+                    playerVC.showsPlaybackControls = willShow
+                    hideTask?.cancel()
+                    if willShow {
+                        hideTask = Task { [weak self] in
+                            try? await Task.sleep(for: .seconds(3))
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run { self?.playerVC?.showsPlaybackControls = false }
+                        }
+                    }
+                }
+
+                func gestureRecognizer(
+                    _: UIGestureRecognizer,
+                    shouldRecognizeSimultaneouslyWith _: UIGestureRecognizer
+                ) -> Bool {
+                    true
+                }
+            #endif
 
             #if os(tvOS)
                 func playerViewControllerWillBeginDismissalTransition(_ playerViewController: AVPlayerViewController) {
