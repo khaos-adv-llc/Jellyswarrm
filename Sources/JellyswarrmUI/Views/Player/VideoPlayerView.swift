@@ -87,19 +87,24 @@ public struct VideoPlayerView: View {
 #if os(macOS)
     import AppKit
 
-    struct SystemPlayerView: NSViewControllerRepresentable {
+    // macOS has no AVPlayerViewController — use AVPlayerView from AVKit (AppKit).
+    struct SystemPlayerView: NSViewRepresentable {
         let player: AVPlayer
         let onDismiss: () -> Void
 
-        func makeNSViewController(context _: Context) -> AVPlayerViewController {
-            let vc = AVPlayerViewController()
-            vc.player = player
-            vc.allowsPictureInPicturePlayback = true
-            return vc
+        func makeNSView(context _: Context) -> AVPlayerView {
+            let view = AVPlayerView()
+            view.player = player
+            view.controlsStyle = .inline
+            view.showsFullScreenToggleButton = true
+            view.allowsPictureInPicturePlayback = true
+            return view
         }
 
-        func updateNSViewController(_ vc: AVPlayerViewController, context _: Context) {
-            vc.player = player
+        func updateNSView(_ nsView: AVPlayerView, context _: Context) {
+            if nsView.player !== player {
+                nsView.player = player
+            }
         }
     }
 #else

@@ -43,7 +43,7 @@ public struct SeerrSetupView: View {
                 Section("Jellyseerr Server") {
                     TextField("Server URL", text: $serverURL)
                         .autocorrectionDisabled()
-                    #if !os(tvOS)
+                    #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                     #endif
@@ -119,7 +119,7 @@ public struct SeerrSetupView: View {
             Section {
                 TextField("API Key", text: $apiKey)
                     .autocorrectionDisabled()
-                #if !os(tvOS)
+                #if os(iOS)
                     .textInputAutocapitalization(.never)
                 #endif
                     .textContentType(.password)
@@ -133,7 +133,7 @@ public struct SeerrSetupView: View {
             Section {
                 TextField("Jellyfin Username", text: $username)
                     .autocorrectionDisabled()
-                #if !os(tvOS)
+                #if os(iOS)
                     .textInputAutocapitalization(.never)
                 #endif
                 SecureField("Jellyfin Password", text: $password)
@@ -148,7 +148,7 @@ public struct SeerrSetupView: View {
             Section {
                 TextField("Email", text: $username)
                     .autocorrectionDisabled()
-                #if !os(tvOS)
+                #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                 #endif

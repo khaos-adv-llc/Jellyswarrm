@@ -27,7 +27,7 @@ public struct ServerSetupView: View {
                 Section("Server") {
                     TextField("Server URL", text: $serverURL)
                         .autocorrectionDisabled()
-                    #if !os(tvOS)
+                    #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                     #endif
@@ -39,7 +39,7 @@ public struct ServerSetupView: View {
                 Section("Account") {
                     TextField("Username", text: $username)
                         .autocorrectionDisabled()
-                    #if !os(tvOS)
+                    #if os(iOS)
                         .textInputAutocapitalization(.never)
                     #endif
                         .textContentType(.username)

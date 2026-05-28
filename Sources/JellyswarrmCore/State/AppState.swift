@@ -11,6 +11,9 @@
 
 import Foundation
 import Observation
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 @Observable
 @MainActor
@@ -43,13 +46,69 @@ public final class AppState {
     private let serverIdsKey = "jellyswarrm_server_ids"
     private let seerrServerIdsKey = "jellyswarrm_seerr_server_ids"
 
+    // Shared App Group keys for tvOS multi-user quick-connect hints.
+    private let lastServerURLKey = "lastServerURL"
+    private let lastSeerrURLKey = "lastSeerrURL"
+    private let lastSeerrAuthModeKey = "lastSeerrAuthMode"
+
     /// App Group suite — device-wide, readable by all tvOS profiles.
     /// Must match the App Group entitlement: com.jellyswarrm.shared
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: "group.com.jellyswarrm.shared") ?? .standard
     }
 
-    public init() {}
+    public init() {
+        #if os(tvOS)
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.willEnterForegroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.handleForegroundTransition() }
+            }
+        #endif
+    }
+
+    // MARK: - tvOS Foreground Transition
+
+    /// Re-read storage when the app foregrounds. On tvOS the OS may swap the
+    /// per-user sandbox during a profile switch, so the in-memory state can be
+    /// stale and the per-user token may now be missing.
+    public func handleForegroundTransition() {
+        let previousServerCount = savedServers.count
+        let wasAuthenticated = isAuthenticated
+        loadFromStorage()
+        if previousServerCount > 0, savedServers.isEmpty {
+            needsTVOSUserOnboarding = true
+        } else if wasAuthenticated, !isAuthenticated {
+            // Same shared configs but the per-user token is gone → new profile
+            needsTVOSUserOnboarding = true
+        }
+    }
+
+    // MARK: - Quick-Connect Hints (shared App Group)
+
+    public var lastServerURL: URL? {
+        sharedDefaults.url(forKey: lastServerURLKey)
+    }
+
+    public var lastSeerrURL: URL? {
+        sharedDefaults.url(forKey: lastSeerrURLKey)
+    }
+
+    public var lastSeerrAuthMode: SeerrAuthMode? {
+        guard let raw = sharedDefaults.string(forKey: lastSeerrAuthModeKey) else { return nil }
+        return SeerrAuthMode(rawValue: raw)
+    }
+
+    private func recordLastServerURL(_ url: URL) {
+        sharedDefaults.set(url, forKey: lastServerURLKey)
+    }
+
+    private func recordLastSeerr(url: URL, mode: SeerrAuthMode) {
+        sharedDefaults.set(url, forKey: lastSeerrURLKey)
+        sharedDefaults.set(mode.rawValue, forKey: lastSeerrAuthModeKey)
+    }
 
     // MARK: - Bootstrap
 
@@ -118,6 +177,7 @@ public final class AppState {
             savedServers.append(server)
             sharedServerConfigs.append(server)
         }
+        recordLastServerURL(server.baseURL)
         setActiveServer(server)
     }
 
@@ -188,6 +248,7 @@ public final class AppState {
         if !savedSeerrServers.contains(where: { $0.id == server.id }) {
             savedSeerrServers.append(server)
         }
+        recordLastSeerr(url: server.baseURL, mode: server.authMode)
         setActiveSeerrServer(server)
     }
 
