@@ -338,6 +338,13 @@ public final class PlayerViewModel {
         server: JellyfinServer,
         token: String
     ) -> URL? {
+        let lowerCodec = videoCodec.lowercased()
+        let isHEVC = lowerCodec.contains("hevc") || lowerCodec.contains("h265")
+        // HEVC cannot ride in MPEG-TS segments on iOS — AVPlayer needs fMP4.
+        // H.264 still works (and is more compatible) in classic MPEG-TS.
+        let segmentContainer = isHEVC ? "fmp4" : "ts"
+        let transcodingContainer = isHEVC ? "mp4" : "ts"
+
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
@@ -350,17 +357,16 @@ public final class PlayerViewModel {
             URLQueryItem(name: "AudioCodec", value: "aac"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
             URLQueryItem(name: "VideoCodec", value: videoCodec),
-            URLQueryItem(name: "TranscodingContainer", value: "ts"),
+            URLQueryItem(name: "TranscodingContainer", value: transcodingContainer),
+            URLQueryItem(name: "SegmentContainer", value: segmentContainer),
             URLQueryItem(name: "TranscodeReasons", value: "AudioCodecNotSupported"),
-            URLQueryItem(name: "SegmentContainer", value: "ts"),
             URLQueryItem(name: "MinSegments", value: "2"),
             URLQueryItem(name: "BreakOnNonKeyFrames", value: "true"),
-            URLQueryItem(name: "h264-profile", value: "high"),
             URLQueryItem(name: "MaxVideoBitrate", value: "200000000"),
             URLQueryItem(name: "VideoBitrate", value: "200000000"),
-            URLQueryItem(name: "RequireAvc", value: "false"),
+            URLQueryItem(name: "RequireAvc", value: isHEVC ? "false" : "true"),
             URLQueryItem(name: "RequireNonAnamorphic", value: "false"),
-            URLQueryItem(name: "EnableMpegtsM2TsMode", value: "false"),
+            URLQueryItem(name: "EnableMpegtsM2TsMode", value: isHEVC ? "false" : "true"),
             URLQueryItem(name: "static", value: "false"),
         ]
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
