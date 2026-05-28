@@ -9,6 +9,11 @@ import SwiftUI
 public struct VideoPlayerView: View {
     let item: MediaItem
     let startFromBeginning: Bool
+    /// When set, used in place of `@Environment(\.dismiss)`. macOS hosts the
+    /// player inside a dedicated NSWindow where the SwiftUI dismiss environment
+    /// is a no-op, so the window controller passes a closure that closes the
+    /// window directly.
+    let onClose: (() -> Void)?
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
@@ -23,9 +28,14 @@ public struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
 
-    public init(item: MediaItem, startFromBeginning: Bool = false) {
+    public init(item: MediaItem, startFromBeginning: Bool = false, onClose: (() -> Void)? = nil) {
         self.item = item
         self.startFromBeginning = startFromBeginning
+        self.onClose = onClose
+    }
+
+    private func performDismiss() {
+        if let onClose { onClose() } else { dismiss() }
     }
 
     public var body: some View {
@@ -42,7 +52,7 @@ public struct VideoPlayerView: View {
                 #else
                 SystemPlayerView(
                     player: player,
-                    onDismiss: { dismiss() },
+                    onDismiss: { performDismiss() },
                     onControlsVisibilityChange: { visible in controlsVisible = visible }
                 )
                 .ignoresSafeArea()
@@ -67,7 +77,7 @@ public struct VideoPlayerView: View {
                         .font(.callout)
                         .foregroundStyle(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
-                    Button("Close") { dismiss() }
+                    Button("Close") { performDismiss() }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -458,6 +468,71 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
 
 #if os(macOS)
     import AppKit
+
+    // Hosts VideoPlayerView in its own borderless NSWindow and toggles native
+    // fullscreen shortly after presenting. Replaces the prior .sheet()
+    // presentation, which produced a small floating panel rather than a real
+    // fullscreen video experience.
+    @MainActor
+    public final class PlayerWindowController: NSWindowController, NSWindowDelegate {
+        public var onClosed: (() -> Void)?
+
+        public init(item: MediaItem, startFromBeginning: Bool, appState: AppState) {
+            let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1280, height: 720)
+            let window = NSWindow(
+                contentRect: screenFrame,
+                styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = item.displayTitle
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isMovableByWindowBackground = true
+            window.collectionBehavior.insert(.fullScreenPrimary)
+            window.backgroundColor = .black
+            window.isReleasedWhenClosed = false
+
+            super.init(window: window)
+
+            // VideoPlayerView is wrapped so the dismiss callback closes this
+            // window rather than going through SwiftUI's dismiss environment
+            // (which is a no-op for an NSHostingView).
+            let content = VideoPlayerView(
+                item: item,
+                startFromBeginning: startFromBeginning,
+                onClose: { [weak self] in self?.window?.close() }
+            )
+            .environment(appState)
+
+            let hosting = NSHostingView(rootView: content)
+            hosting.translatesAutoresizingMaskIntoConstraints = false
+            window.contentView = hosting
+            window.delegate = self
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) not supported")
+        }
+
+        public func present() {
+            showWindow(nil)
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            // Defer toggleFullScreen so the window is on screen first; calling
+            // it synchronously after order-front fails silently on some macOS
+            // versions.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.window?.toggleFullScreen(nil)
+            }
+        }
+
+        public func windowWillClose(_: Notification) {
+            onClosed?()
+            onClosed = nil
+        }
+    }
 
     // macOS has no AVPlayerViewController — use AVPlayerView from AVKit (AppKit).
     struct SystemPlayerView: NSViewRepresentable {

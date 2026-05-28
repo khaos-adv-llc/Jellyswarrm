@@ -4,6 +4,9 @@
 
 import JellyswarrmCore
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 public struct MediaDetailView: View {
     let item: MediaItem
@@ -24,6 +27,9 @@ public struct MediaDetailView: View {
     @State private var selectedSeasonId: String?
     @State private var episodes: [MediaItem] = []
     @State private var isLoadingEpisodes = false
+    #if os(macOS)
+    @State private var playerWindow: PlayerWindowController?
+    #endif
 
     var displayItem: MediaItem { detail ?? item }
 
@@ -85,9 +91,10 @@ public struct MediaDetailView: View {
             }
         }
         #if os(macOS)
-        .sheet(isPresented: $showPlayer) {
-            VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
-                .frame(minWidth: 800, minHeight: 450)
+        .onChange(of: showPlayer) { _, newValue in
+            if newValue {
+                presentMacPlayer()
+            }
         }
         #else
         .fullScreenCover(isPresented: $showPlayer) {
@@ -100,6 +107,25 @@ public struct MediaDetailView: View {
         }
         #endif
     }
+
+    #if os(macOS)
+    private func presentMacPlayer() {
+        // Reuse an existing controller if one is mid-teardown so a rapid
+        // re-tap can't leak windows.
+        playerWindow?.window?.close()
+        let controller = PlayerWindowController(
+            item: displayItem,
+            startFromBeginning: startFromBeginning,
+            appState: appState
+        )
+        controller.onClosed = {
+            showPlayer = false
+            playerWindow = nil
+        }
+        playerWindow = controller
+        controller.present()
+    }
+    #endif
 
     // MARK: - Series Loading
 
