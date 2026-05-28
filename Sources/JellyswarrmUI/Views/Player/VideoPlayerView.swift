@@ -377,12 +377,37 @@ public struct VideoPlayerView: View {
         }
 
         var top = root
-        while let next = top.presentedViewController {
+        while let next = top.presentedViewController, !next.isBeingDismissed {
             top = next
         }
 
-        top.present(playerVC, animated: true) {
-            print("[Player] AVPlayerViewController UIKit-presented, awaiting readyForDisplay for autoplay")
+        if top.isBeingDismissed {
+            // The cover is mid-dismissal — retry after the animation completes
+            print("[Player] Presenter is mid-dismissal, retrying in 0.5s")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak playerVC] in
+                guard let playerVC else { return }
+                var retryTop = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first(where: { $0.activationState == .foregroundActive })?
+                    .windows.first(where: { $0.isKeyWindow })?
+                    .rootViewController
+                guard var retryTop else { return }
+                var cursor: UIViewController = retryTop
+                while let next = cursor.presentedViewController, !next.isBeingDismissed {
+                    cursor = next
+                }
+                guard !cursor.isBeingDismissed else {
+                    print("[Player] Presenter still dismissing after retry, giving up")
+                    return
+                }
+                cursor.present(playerVC, animated: true) {
+                    print("[Player] AVPlayerViewController UIKit-presented (retry), awaiting readyForDisplay for autoplay")
+                }
+            }
+        } else {
+            top.present(playerVC, animated: true) {
+                print("[Player] AVPlayerViewController UIKit-presented, awaiting readyForDisplay for autoplay")
+            }
         }
     }
     #endif
@@ -413,11 +438,13 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
             }
             statusObservation = nil
             tcObservation = nil
-            let stop = onStop
+            let stopClosure = onStop
             onStop = nil
-            Task { await stop?() }
-            onDismissed?()
+            Task { await stopClosure?() }
+            // Capture and nil BEFORE calling — prevents double-dismiss
+            let dismissClosure = onDismissed
             onDismissed = nil
+            dismissClosure?()
         }
     }
 }
