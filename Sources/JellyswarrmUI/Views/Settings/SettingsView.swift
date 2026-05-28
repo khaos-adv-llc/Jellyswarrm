@@ -16,6 +16,8 @@ public struct SettingsView: View {
     private var fadeBackground: Color {
         #if os(macOS)
             return Color(nsColor: .windowBackgroundColor)
+        #elseif os(tvOS)
+            return Color.black
         #else
             return Color(uiColor: .systemBackground)
         #endif
