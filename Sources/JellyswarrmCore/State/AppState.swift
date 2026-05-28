@@ -139,13 +139,35 @@ public final class AppState {
         loadSharedServerConfigs() // always — needed for tvOS onboarding check
         loadSeerrServers()
 
-        // Restore active server from per-user defaults
-        if let activeId = UserDefaults.standard.string(forKey: activeServerIdKey),
-           let server = sharedServerConfigs.first(where: { $0.id == activeId })
-        {
+        // Resolve the server to restore. Prefer the explicit active id from
+        // per-user defaults, but fall back to the first saved server that has
+        // a valid token in the per-user Keychain. The fallback covers cases
+        // where the active id was lost (e.g. UserDefaults.standard wiped on a
+        // tvOS profile reset) but the config + token are still present.
+        let activeId = UserDefaults.standard.string(forKey: activeServerIdKey)
+        let resolvedServer: JellyfinServer? = {
+            if let id = activeId,
+               let s = sharedServerConfigs.first(where: { $0.id == id }),
+               KeychainManager.exists(key: "jellyfin_token_\(s.id)")
+            {
+                return s
+            }
+            return sharedServerConfigs.first(where: {
+                KeychainManager.exists(key: "jellyfin_token_\($0.id)")
+            })
+        }()
+
+        if let server = resolvedServer {
             currentServer = server
             savedServers = sharedServerConfigs
-            isAuthenticated = KeychainManager.exists(key: "jellyfin_token_\(server.id)")
+            isAuthenticated = true
+            // Persist the resolved id so subsequent launches use the fast path.
+            if activeId != server.id {
+                UserDefaults.standard.set(server.id, forKey: activeServerIdKey)
+            }
+        } else {
+            currentServer = nil
+            isAuthenticated = false
         }
 
         // Restore active Seerr server
@@ -153,6 +175,8 @@ public final class AppState {
            let server = savedSeerrServers.first(where: { $0.id == seerrId })
         {
             seerrServer = server
+        } else {
+            seerrServer = savedSeerrServers.first
         }
     }
 
