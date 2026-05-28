@@ -91,7 +91,12 @@ public struct MediaDetailView: View {
         }
         #else
         .fullScreenCover(isPresented: $showPlayer) {
+            // Stable identity prevents SwiftUI from cycling the cover's hosting
+            // controller on iOS 26 beta when MediaDetailView re-renders (e.g.
+            // when the .task above finishes and assigns `detail`). Without it,
+            // the cycle fires onDisappear mid-playback and kills the player.
             VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
+                .id(displayItem.id)
         }
         #endif
     }

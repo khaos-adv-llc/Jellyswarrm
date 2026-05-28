@@ -209,29 +209,25 @@ public struct VideoPlayerView: View {
         }
         .onDisappear {
             playerVM?.stopChapterObserver()
-            // Remove the non-iOS periodic time observer so its closure stops
-            // retaining the view model. iOS uses the observer stored on
-            // DismissAwareAVPlayerViewController, which is removed in
-            // viewDidDisappear there.
+            #if !os(iOS)
+            // iOS teardown is handled by DismissAwareAVPlayerViewController
+            // .viewDidDisappear — SwiftUI fires this onDisappear spuriously on
+            // iOS 26 beta when the parent MediaDetailView re-renders, which
+            // would otherwise kill the active player mid-playback.
             if let token = timeObserverToken {
                 player?.removeTimeObserver(token)
                 timeObserverToken = nil
             }
             guard let vm = playerVM else { return }
             let outgoingPlayer = player
-            // Nil the player item BEFORE proxy teardown so AVPlayer cancels
-            // its in-flight segment fetches against the proxy. Without this,
-            // pre-fetched .ts requests land on a closed NWListener and log
-            // as "Connection reset by peer" noise.
             outgoingPlayer?.pause()
             outgoingPlayer?.replaceCurrentItem(with: nil)
             player = nil
             Task {
-                // Give AVPlayer a moment to drain its in-flight requests
-                // before the loopback proxy listener is cancelled.
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 await vm.stop()
             }
+            #endif
         }
     }
 
@@ -254,6 +250,16 @@ public struct VideoPlayerView: View {
         playerVC.entersFullScreenWhenPlaybackBegins = true
         playerVC.exitsFullScreenWhenPlaybackEnds = true
         playerVC.onDismissed = { dismiss() }
+        playerVC.onStop = { [weak vm] in
+            // Mirror the non-iOS teardown sequence: pause + drop the item to
+            // cancel in-flight proxy fetches, brief sleep, then stop the VM.
+            await MainActor.run {
+                player.pause()
+                player.replaceCurrentItem(with: nil)
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            await vm?.stop()
+        }
         playerVC.itemId = item.id
         // Retain the diagnostic KVO tokens for the session — without this
         // they deinit immediately after .task returns, which can interfere
@@ -385,6 +391,7 @@ public struct VideoPlayerView: View {
 #if os(iOS)
 private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
     var onDismissed: (() -> Void)?
+    var onStop: (() async -> Void)?
     var readyObservation: NSKeyValueObservation?
     var seekStatusObservation: NSKeyValueObservation?
     var statusObservation: NSKeyValueObservation?
@@ -397,6 +404,8 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        // Only genuine dismissal — not SwiftUI lifecycle churn — should tear
+        // down the player session.
         if isBeingDismissed || isMovingFromParent {
             if let token = timeObserver {
                 player?.removeTimeObserver(token)
@@ -404,6 +413,9 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
             }
             statusObservation = nil
             tcObservation = nil
+            let stop = onStop
+            onStop = nil
+            Task { await stop?() }
             onDismissed?()
             onDismissed = nil
         }
