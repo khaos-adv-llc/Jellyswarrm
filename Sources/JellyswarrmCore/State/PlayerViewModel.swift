@@ -123,17 +123,19 @@ public final class PlayerViewModel {
             if audioIsCompatible {
                 print("[Player] Audio codec '\(audioCodec)' is direct-playable, using direct stream")
             } else if videoIsHEVC {
-                print("[Player] Audio codec '\(audioCodec)' + HEVC requires full transcode (H.264+AAC), using HLS transcode URL")
+                print("[Player] Audio codec '\(audioCodec)' + HEVC — will stream.mp4 with AAC audio transcode")
             } else {
-                print("[Player] Audio codec '\(audioCodec)' requires audio transcode (H.264 passthrough+AAC), using HLS transcode URL")
+                print("[Player] Audio codec '\(audioCodec)' — will stream.mp4 with AAC audio transcode")
             }
 
             if !audioIsCompatible {
-                // HEVC + incompatible audio → full transcode to H.264 + AAC in TS
-                //   (Jellyfin's fMP4 HLS is broken: missing EXT-X-MAP, wrong EXT-X-VERSION)
-                // H.264 + incompatible audio → H.264 passthrough + AAC transcode in TS
-                requiresTranscodeWarmup = true
-                playbackURL = buildTranscodeURL(
+                // Incompatible audio (Opus, EAC3, TrueHD, DTS, FLAC) — use Jellyfin's
+                // /Videos/{id}/stream.mp4 endpoint: video passes through untouched,
+                // only audio is transcoded to AAC. This is what Jellyfin's web player
+                // does and produces a plain progressive HTTP stream that AVPlayer handles
+                // natively — no HLS, no fMP4, no segment polling needed.
+                requiresTranscodeWarmup = false
+                playbackURL = buildAudioTranscodeStreamURL(
                     itemId: item.id,
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
@@ -141,7 +143,7 @@ public final class PlayerViewModel {
                     server: server,
                     token: token
                 )
-                print("[Player] Using HLS transcode URL: \(playbackURL?.absoluteString ?? "-")")
+                print("[Player] Using stream.mp4 audio-transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
                 requiresTranscodeWarmup = false
@@ -406,6 +408,43 @@ public final class PlayerViewModel {
             URLQueryItem(name: "RequireNonAnamorphic", value: "true"),
             URLQueryItem(name: "EnableMpegtsM2TsMode", value: "false"),
             URLQueryItem(name: "static", value: "false"),
+        ]
+        if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
+        components.queryItems = items
+        return components.url
+    }
+
+
+    /// Constructs a Jellyfin progressive-stream URL that passes video through
+    /// and transcodes only the audio to AAC.
+    ///
+    /// Uses `/Videos/{id}/stream.mp4` — the same endpoint Jellyfin's web player
+    /// uses for HEVC direct-stream + audio transcode. Produces a single progressive
+    /// HTTP response that AVPlayer handles without any HLS machinery.
+    ///
+    /// Works for both HEVC and H.264 sources — the video codec is passed through
+    /// unchanged; only the audio is re-encoded to AAC LC.
+    private func buildAudioTranscodeStreamURL(
+        itemId: String,
+        source: MediaSource,
+        audioStreamIndex: Int,
+        videoCodec: String,
+        server: JellyfinServer,
+        token: String
+    ) -> URL? {
+        let base = server.baseURL.absoluteString.hasSuffix("/")
+            ? server.baseURL.absoluteString
+            : server.baseURL.absoluteString + "/"
+        let path = "Videos/\(itemId)/stream.mp4"
+        guard var components = URLComponents(string: base + path) else { return nil }
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
+            URLQueryItem(name: "api_key", value: token),
+            URLQueryItem(name: "VideoCodec", value: videoCodec),
+            URLQueryItem(name: "AudioCodec", value: "aac"),
+            URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
+            URLQueryItem(name: "Static", value: "false"),
         ]
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         components.queryItems = items
