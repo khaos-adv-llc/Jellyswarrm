@@ -24,6 +24,12 @@ public final class PlayerViewModel {
     public var audioStreamIndex: Int?
     public var subtitleStreamIndex: Int?
 
+    /// True when the chosen playbackURL is an HLS transcode that the
+    /// Jellyfin server must spin up before AVPlayer can fetch segments.
+    /// Used by the view layer to pre-warm the transcode session before
+    /// handing the URL to AVPlayer (avoids -12860 media services crash).
+    public private(set) var requiresTranscodeWarmup: Bool = false
+
     // Current chapter name (updated by periodic time observer)
     public var currentChapterName: String?
 
@@ -45,6 +51,12 @@ public final class PlayerViewModel {
     // MARK: - Load Playback
 
     public func loadPlayback(for item: MediaItem, startFromBeginning: Bool = false) async {
+        // Idempotency guard: SwiftUI may re-run .task and call loadPlayback
+        // twice concurrently. Two PlaybackInfo POSTs + two transcode sessions
+        // confuses Jellyfin and contributes to AVPlayer hitting an empty
+        // segment 0 (FigPlayer_MediaServiceDied / -12860).
+        guard !isLoading, playbackURL == nil else { return }
+
         guard let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }
 
@@ -112,6 +124,7 @@ public final class PlayerViewModel {
                 // HEVC + incompatible audio → full transcode to H.264 + AAC in TS
                 //   (Jellyfin's fMP4 HLS is broken: missing EXT-X-MAP, wrong EXT-X-VERSION)
                 // H.264 + incompatible audio → H.264 passthrough + AAC transcode in TS
+                requiresTranscodeWarmup = true
                 playbackURL = buildTranscodeURL(
                     itemId: item.id,
                     source: resolvedSource,
@@ -123,15 +136,18 @@ public final class PlayerViewModel {
                 print("[Player] Using HLS transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
+                requiresTranscodeWarmup = false
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
                 print("[Player] Using server-provided stream URL")
             } else if let transPath = resolvedSource.transcodingUrl {
                 // Server provided a transcode path
+                requiresTranscodeWarmup = true
                 playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
                 print("[Player] Using server-provided transcode URL")
             } else if resolvedSource.supportsDirectStream {
                 // Jellyfin didn't return a URL but says direct stream is supported.
                 // Construct the VideoStream URL manually — this is the standard pattern.
+                requiresTranscodeWarmup = false
                 playbackURL = buildDirectStreamURL(
                     source: resolvedSource,
                     server: server,
@@ -142,6 +158,7 @@ public final class PlayerViewModel {
                 print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
             } else if resolvedSource.supportsTranscoding {
                 // Ask Jellyfin for a transcode URL by constructing the HLS endpoint
+                requiresTranscodeWarmup = true
                 playbackURL = buildTranscodeURL(
                     itemId: item.id,
                     source: resolvedSource,

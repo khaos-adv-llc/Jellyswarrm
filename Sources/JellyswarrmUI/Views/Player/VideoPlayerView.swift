@@ -83,24 +83,33 @@ public struct VideoPlayerView: View {
         .task {
             playerVM = PlayerViewModel(appState: appState)
             await playerVM.loadPlayback(for: item, startFromBeginning: startFromBeginning)
-            if let url = playerVM.playbackURL {
-                let playerItem = AVPlayerItem(url: url)
-                // Don't artificially cap bitrate — let direct play use full bitrate
-                // for HDR / Dolby Vision.
-                playerItem.preferredPeakBitRate = 0
-                playerVM.configurePlayerItem(playerItem)
-                let avPlayer = AVPlayer(playerItem: playerItem)
-                player = avPlayer
-                // Seek to last position (skipped when restarting)
-                if playerVM.positionTicks > 0 {
-                    let seconds = playerVM.positionTicks.ticksToSeconds
-                    await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
-                }
-                avPlayer.play()
-                playerVM.isPlaying = true
-                if let chapters = playerVM.currentItem?.chapters, !chapters.isEmpty {
-                    playerVM.startChapterObserver(on: avPlayer, chapters: chapters)
-                }
+            guard let url = playerVM.playbackURL else { return }
+
+            // Pre-warm the Jellyfin transcode: fetch the manifest to kick off
+            // transcoding, then wait until segment 0 is ready before handing
+            // the URL to AVPlayer. Without this, iOS media services crash
+            // (-12860 FigPlayer_MediaServiceDied) because AVPlayer hits the
+            // segment URL before the transcoder has written any bytes.
+            if playerVM.requiresTranscodeWarmup {
+                await warmupTranscode(url: url)
+            }
+
+            let playerItem = AVPlayerItem(url: url)
+            // Don't artificially cap bitrate — let direct play use full bitrate
+            // for HDR / Dolby Vision.
+            playerItem.preferredPeakBitRate = 0
+            playerVM.configurePlayerItem(playerItem)
+            let avPlayer = AVPlayer(playerItem: playerItem)
+            player = avPlayer
+            // Seek to last position (skipped when restarting)
+            if playerVM.positionTicks > 0 {
+                let seconds = playerVM.positionTicks.ticksToSeconds
+                await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+            }
+            avPlayer.play()
+            playerVM.isPlaying = true
+            if let chapters = playerVM.currentItem?.chapters, !chapters.isEmpty {
+                playerVM.startChapterObserver(on: avPlayer, chapters: chapters)
             }
         }
         .onDisappear {
@@ -109,6 +118,32 @@ public struct VideoPlayerView: View {
             player?.pause()
             player = nil
         }
+    }
+
+    /// Kicks off the Jellyfin HLS transcode session and waits until segment 0
+    /// is downloadable before returning. AVPlayer otherwise hits an empty
+    /// segment and the iOS media services process crashes with -12860.
+    private func warmupTranscode(url: URL) async {
+        // Step 1: hit master.m3u8 — this is what starts the transcode on the server.
+        _ = try? await URLSession.shared.data(from: url)
+
+        // Step 2: derive segment 0 URL from the manifest URL by swapping
+        // "master.m3u8" → "hls1/main/0.ts" while preserving query params.
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        components.path = components.path.replacingOccurrences(of: "master.m3u8", with: "hls1/main/0.ts")
+        guard let seg0URL = components.url else { return }
+
+        // Step 3: poll segment 0 until it returns 200 (up to ~10s).
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            if let response = try? await URLSession.shared.data(from: seg0URL).1 as? HTTPURLResponse,
+               response.statusCode == 200 {
+                print("[Player] Transcode warmed up — segment 0 ready")
+                return
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        print("[Player] Transcode warmup timeout — proceeding anyway")
     }
 }
 
