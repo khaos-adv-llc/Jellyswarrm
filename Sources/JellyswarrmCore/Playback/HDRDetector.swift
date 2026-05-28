@@ -13,7 +13,7 @@ public enum HDRFormat: Sendable, Equatable {
     case sdr           // Standard dynamic range
 }
 
-public actor HDRDetector {
+public enum HDRDetector {
     public static func detect(asset: AVAsset) async -> HDRFormat {
         guard let hdrTracks = try? await asset.loadTracks(withMediaCharacteristic: .containsHDRVideo),
               !hdrTracks.isEmpty else {
