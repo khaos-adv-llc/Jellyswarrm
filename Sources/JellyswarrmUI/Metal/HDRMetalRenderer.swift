@@ -23,13 +23,18 @@ struct ToneMappingUniforms {
 
 /// EDR headroom reported by the active display. Platform differs:
 /// - macOS: NSScreen.maximumExtendedDynamicRangeColorComponentValue
-/// - iOS / tvOS: UIScreen.currentEDRHeadroom
+/// - iOS / tvOS: UIScreen.currentEDRHeadroom on the view's windowScene.screen
+///   (UIScreen.main was deprecated in iOS 26 — query the screen the view is
+///   actually on instead, which is also correct on multi-display systems).
 @MainActor
-private func currentEDRHeadroom() -> Float {
+private func currentEDRHeadroom(view: MTKView) -> Float {
 #if os(macOS)
     return Float(NSScreen.main?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0)
 #else
-    return Float(UIScreen.main.currentEDRHeadroom)
+    if let screen = view.window?.windowScene?.screen {
+        return Float(screen.currentEDRHeadroom)
+    }
+    return 1.0
 #endif
 }
 
@@ -180,7 +185,7 @@ public final class HDRMetalRenderer: NSObject, MTKViewDelegate {
         guard let cvTex = cvTexture, let frameTexture = CVMetalTextureGetTexture(cvTex) else { return }
 
         var uniforms = ToneMappingUniforms(
-            edrHeadroom: currentEDRHeadroom(),
+            edrHeadroom: currentEDRHeadroom(view: view),
             hdrMode: Int32(hdrFormat == .hdr10 ? 1 : hdrFormat == .hlg ? 2 : 0)
         )
 
@@ -194,11 +199,25 @@ public final class HDRMetalRenderer: NSObject, MTKViewDelegate {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
 
+        // CVMetalTexture is not Sendable, but addCompletedHandler's closure is
+        // @Sendable under Swift 6. Box the texture in an unchecked-Sendable
+        // wrapper — Metal documents that the completion handler runs after the
+        // GPU finishes, so concurrent access to the underlying CVBuffer is
+        // serialized by the GPU completion itself.
+        let textureBox = UncheckedSendable(cvTex)
         commandBuffer.addCompletedHandler { _ in
-            _ = cvTex // hold the CVMetalTexture until the GPU finishes
+            _ = textureBox.value // hold the CVMetalTexture until the GPU finishes
         }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+
+    /// Wrapper that allows non-Sendable values to cross actor boundaries.
+    /// Use only when the value is logically thread-safe in context (e.g. held
+    /// across a GPU completion handler that serializes access).
+    private struct UncheckedSendable<T>: @unchecked Sendable {
+        let value: T
+        init(_ value: T) { self.value = value }
     }
 
     private func updateEDRMetadata(from pixelBuffer: CVPixelBuffer) {

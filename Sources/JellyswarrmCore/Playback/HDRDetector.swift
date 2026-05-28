@@ -14,6 +14,10 @@ public enum HDRFormat: Sendable, Equatable {
 }
 
 public enum HDRDetector {
+    // MainActor-isolated so the non-Sendable AVAsset parameter does not need
+    // to cross actor boundaries — under Swift 6 strict concurrency, sending
+    // an AVAsset across actors trips a data-race warning.
+    @MainActor
     public static func detect(asset: AVAsset) async -> HDRFormat {
         guard let hdrTracks = try? await asset.loadTracks(withMediaCharacteristic: .containsHDRVideo),
               !hdrTracks.isEmpty else {

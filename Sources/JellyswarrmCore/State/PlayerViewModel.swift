@@ -473,12 +473,18 @@ public final class PlayerViewModel {
         stopChapterObserver()
         guard !chapters.isEmpty else { return }
         chapterObserverPlayer = player
+        // addPeriodicTimeObserver dispatches on .main, but its closure is
+        // @Sendable under Swift 6 — touching @MainActor state directly trips
+        // a warning. Hop through MainActor.run to compute + assign the name.
         chapterObserverToken = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 1, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             let ticks = Int64(time.seconds * 10_000_000)
-            self?.currentChapterName = self?.currentChapterName(atTicks: ticks, chapters: chapters)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.currentChapterName = self.currentChapterName(atTicks: ticks, chapters: chapters)
+            }
         }
     }
 

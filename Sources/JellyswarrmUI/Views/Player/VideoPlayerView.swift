@@ -355,7 +355,11 @@ public struct VideoPlayerView: View {
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }
             let ticks = Int64(seconds * 10_000_000)
-            vm.positionTicks = ticks
+            // addPeriodicTimeObserver's closure is @Sendable under Swift 6;
+            // hop to the main actor to mutate the @MainActor PlayerViewModel.
+            Task { @MainActor [weak vm] in
+                vm?.positionTicks = ticks
+            }
             let defaults = UserDefaults.standard
             let key = "resume_\(itemId)"
             let duration = player.currentItem?.duration.seconds

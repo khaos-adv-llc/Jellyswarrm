@@ -220,8 +220,8 @@ enum PlayerPresenter {
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }
             let ticks = Int64(seconds * 10_000_000)
-            Task { @MainActor in
-                vm.positionTicks = ticks
+            Task { @MainActor [weak vm] in
+                vm?.positionTicks = ticks
             }
             let defaults = UserDefaults.standard
             let key = "resume_\(vc.itemId)"
