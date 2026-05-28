@@ -6,7 +6,7 @@ import Foundation
 
 /// Represents a configured Jellyfin server connection.
 /// Credentials (token) are stored in Keychain — never in this struct directly.
-public struct JellyfinServer: Sendable, Identifiable, Equatable, Codable {
+public struct JellyfinServer: Sendable, Identifiable, Equatable, Hashable, Codable {
     public let id: String
     public var name: String
     public var baseURL: URL
@@ -40,7 +40,7 @@ public struct JellyfinServer: Sendable, Identifiable, Equatable, Codable {
 
 /// Represents a configured Jellyseerr server.
 /// API key is stored in Keychain.
-public struct SeerrServer: Sendable, Identifiable, Equatable, Codable {
+public struct SeerrServer: Sendable, Identifiable, Equatable, Hashable, Codable {
     public let id: String
     public var name: String
     public var baseURL: URL

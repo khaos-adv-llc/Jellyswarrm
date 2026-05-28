@@ -60,7 +60,9 @@ public struct MediaDetailView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .navigationBarTitleDisplayMode(.inline)
+        #if !os(tvOS)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             detail = try? await libraryVM.getDetail(for: item.id)
             isLoading = false

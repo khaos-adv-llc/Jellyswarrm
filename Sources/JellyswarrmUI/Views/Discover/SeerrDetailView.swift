@@ -402,7 +402,9 @@ public struct RequestFormView: View {
                                                 else { selectedSeasons.remove(season) }
                                             }
                                         ))
-                                        .toggleStyle(.button)
+                                        #if !os(tvOS)
+                                            .toggleStyle(.button)
+                                        #endif
                                     }
                                 }
                                 .padding(.horizontal)

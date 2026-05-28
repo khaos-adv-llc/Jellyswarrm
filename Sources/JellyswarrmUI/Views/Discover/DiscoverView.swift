@@ -57,7 +57,9 @@ public struct DiscoverView: View {
                         Text(tab.rawValue).tag(tab)
                     }
                 }
-                .pickerStyle(.segmented)
+                #if !os(tvOS)
+                    .pickerStyle(.segmented)
+                #endif
                 .padding(.horizontal, hPad)
 
                 switch discoverVM.activeTab {

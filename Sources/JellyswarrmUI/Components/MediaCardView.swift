@@ -19,7 +19,11 @@ public struct MediaCardView: View {
         self.cardWidth = cardWidth
     }
 
-    @State private var isFocused: Bool = false
+    #if os(tvOS)
+        @FocusState private var isFocused: Bool
+    #else
+        @State private var isFocused: Bool = false
+    #endif
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
 
@@ -145,7 +149,11 @@ public struct SeerrMediaCardView: View {
         self.cardWidth = cardWidth
     }
 
-    @State private var isFocused: Bool = false
+    #if os(tvOS)
+        @FocusState private var isFocused: Bool
+    #else
+        @State private var isFocused: Bool = false
+    #endif
 
     var cardHeight: CGFloat { cardWidth * 1.5 }
 

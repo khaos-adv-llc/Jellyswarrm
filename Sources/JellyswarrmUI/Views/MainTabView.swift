@@ -97,34 +97,36 @@ public struct MainTabView: View {
 
     // MARK: - macOS
 
-    private var macOSLayout: some View {
-        NavigationSplitView {
-            List {
-                NavigationLink(destination: HomeView().environment(libraryVM)) {
-                    Label("Home", systemImage: "house.fill")
+    #if !os(tvOS)
+        private var macOSLayout: some View {
+            NavigationSplitView {
+                List {
+                    NavigationLink(destination: HomeView().environment(libraryVM)) {
+                        Label("Home", systemImage: "house.fill")
+                    }
+                    NavigationLink(destination: LibraryView().environment(libraryVM)) {
+                        Label("Library", systemImage: "film.stack")
+                    }
+                    NavigationLink(destination: DiscoverView().environment(discoverVM)) {
+                        Label("Discover", systemImage: "sparkles.tv")
+                    }
+                    NavigationLink(destination: SearchView().environment(searchVM)) {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+                    Divider()
+                    NavigationLink(destination: SettingsView()) {
+                        Label("Settings", systemImage: "gearshape")
+                    }
                 }
-                NavigationLink(destination: LibraryView().environment(libraryVM)) {
-                    Label("Library", systemImage: "film.stack")
-                }
-                NavigationLink(destination: DiscoverView().environment(discoverVM)) {
-                    Label("Discover", systemImage: "sparkles.tv")
-                }
-                NavigationLink(destination: SearchView().environment(searchVM)) {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                Divider()
-                NavigationLink(destination: SettingsView()) {
-                    Label("Settings", systemImage: "gearshape")
-                }
+                .listStyle(.sidebar)
+                .navigationTitle("Jellyswarrm")
+            } detail: {
+                HomeView()
+                    .environment(libraryVM)
             }
-            .listStyle(.sidebar)
-            .navigationTitle("Jellyswarrm")
-        } detail: {
-            HomeView()
-                .environment(libraryVM)
+            .task { await setupViewModels() }
         }
-        .task { await setupViewModels() }
-    }
+    #endif
 
     // MARK: - ViewModel Setup
 
