@@ -80,36 +80,58 @@ public struct VideoPlayerView: View {
                 .padding()
             }
         }
-        .task {
-            playerVM = PlayerViewModel(appState: appState)
-            await playerVM.loadPlayback(for: item, startFromBeginning: startFromBeginning)
-            guard let url = playerVM.playbackURL else { return }
+        .task(id: item.id) {
+            // Use item.id as the task identity so SwiftUI only runs this once
+            // per item. Without this, mutating @State playerVM inside the task
+            // triggers a re-render which restarts the task, causing double
+            // PlaybackInfo calls and competing AVPlayer instances.
+            let vm = PlayerViewModel(appState: appState)
+            playerVM = vm
+            await vm.loadPlayback(for: item, startFromBeginning: startFromBeginning)
+            guard let url = vm.playbackURL else {
+                print("[Player] ERROR: no playbackURL after loadPlayback")
+                return
+            }
 
-            // Pre-warm the Jellyfin transcode: fetch the manifest to kick off
-            // transcoding, then wait until segment 0 is ready before handing
-            // the URL to AVPlayer. Without this, iOS media services crash
-            // (-12860 FigPlayer_MediaServiceDied) because AVPlayer hits the
-            // segment URL before the transcoder has written any bytes.
-            if playerVM.requiresTranscodeWarmup {
+            if vm.requiresTranscodeWarmup {
                 await warmupTranscode(url: url)
             }
 
             let playerItem = AVPlayerItem(url: url)
-            // Don't artificially cap bitrate — let direct play use full bitrate
-            // for HDR / Dolby Vision.
             playerItem.preferredPeakBitRate = 0
-            playerVM.configurePlayerItem(playerItem)
+            vm.configurePlayerItem(playerItem)
             let avPlayer = AVPlayer(playerItem: playerItem)
+
+            // Observe AVPlayerItem status so we get a clear error if AVFoundation
+            // rejects the URL — otherwise the failure is silent (play icon w/ line).
+            let observation = playerItem.observe(\.status, options: [.new]) { item, _ in
+                switch item.status {
+                case .failed:
+                    let err = item.error
+                    print("[Player] AVPlayerItem FAILED: \(err?.localizedDescription ?? "unknown")")
+                    if let err = err as? NSError {
+                        print("[Player] AVPlayerItem error domain=\(err.domain) code=\(err.code) userInfo=\(err.userInfo)")
+                    }
+                case .readyToPlay:
+                    print("[Player] AVPlayerItem readyToPlay")
+                case .unknown:
+                    print("[Player] AVPlayerItem status unknown")
+                @unknown default:
+                    break
+                }
+            }
+            // Hold observation alive for the duration of playback
+            _ = observation
+
             player = avPlayer
-            // Seek to last position (skipped when restarting)
-            if playerVM.positionTicks > 0 {
-                let seconds = playerVM.positionTicks.ticksToSeconds
+            if vm.positionTicks > 0 {
+                let seconds = vm.positionTicks.ticksToSeconds
                 await avPlayer.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
             }
             avPlayer.play()
-            playerVM.isPlaying = true
-            if let chapters = playerVM.currentItem?.chapters, !chapters.isEmpty {
-                playerVM.startChapterObserver(on: avPlayer, chapters: chapters)
+            vm.isPlaying = true
+            if let chapters = vm.currentItem?.chapters, !chapters.isEmpty {
+                vm.startChapterObserver(on: avPlayer, chapters: chapters)
             }
         }
         .onDisappear {
