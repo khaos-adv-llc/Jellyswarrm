@@ -28,7 +28,8 @@ public struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
     #if os(macOS)
-    @State private var isHovering: Bool = false
+    @State private var showControls: Bool = false
+    @State private var hideTask: Task<Void, Never>? = nil
     #endif
 
     public init(item: MediaItem, startFromBeginning: Bool = false, onClose: (() -> Void)? = nil) {
@@ -40,6 +41,19 @@ public struct VideoPlayerView: View {
     private func performDismiss() {
         if let onClose { onClose() } else { dismiss() }
     }
+
+    #if os(macOS)
+    @MainActor
+    private func scheduleHide() {
+        hideTask?.cancel()
+        showControls = true
+        hideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            showControls = false
+        }
+    }
+    #endif
 
     public var body: some View {
         ZStack {
@@ -61,6 +75,10 @@ public struct VideoPlayerView: View {
                     )
                     .ignoresSafeArea()
 
+                    MouseTrackingView(onMouseMoved: { scheduleHide() })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
+
                     // Button stays in the hierarchy so .keyboardShortcut(.escape)
                     // keeps firing while the chrome is faded out.
                     Button(action: { performDismiss() }) {
@@ -72,11 +90,8 @@ public struct VideoPlayerView: View {
                     .buttonStyle(.plain)
                     .padding(20)
                     .keyboardShortcut(.escape, modifiers: [])
-                    .opacity(isHovering ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.2), value: isHovering)
-                }
-                .onHover { hovering in
-                    isHovering = hovering
+                    .opacity(showControls ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.25), value: showControls)
                 }
                 #else
                 SystemPlayerView(
@@ -248,6 +263,10 @@ public struct VideoPlayerView: View {
         }
         .onDisappear {
             playerVM?.stopChapterObserver()
+            #if os(macOS)
+            hideTask?.cancel()
+            hideTask = nil
+            #endif
             #if !os(iOS)
             // iOS teardown is handled by DismissAwareAVPlayerViewController
             // .viewDidDisappear — SwiftUI fires this onDisappear spuriously on
@@ -497,6 +516,48 @@ private final class DismissAwareAVPlayerViewController: AVPlayerViewController {
 
 #if os(macOS)
     import AppKit
+
+    // Transparent NSView overlay that fires onMouseMoved on every mouse motion
+    // (and on mouse-enter) within its bounds. SwiftUI's .onHover only fires on
+    // boundary crossings, which is insufficient for "show controls while the
+    // user is moving the mouse, hide after 3s of stillness" behavior.
+    struct MouseTrackingView: NSViewRepresentable {
+        var onMouseMoved: () -> Void
+
+        func makeNSView(context _: Context) -> NSView {
+            let view = TrackingNSView()
+            view.onMouseMoved = onMouseMoved
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context _: Context) {
+            (nsView as? TrackingNSView)?.onMouseMoved = onMouseMoved
+        }
+
+        final class TrackingNSView: NSView {
+            var onMouseMoved: (() -> Void)?
+
+            override func updateTrackingAreas() {
+                super.updateTrackingAreas()
+                trackingAreas.forEach { removeTrackingArea($0) }
+                let area = NSTrackingArea(
+                    rect: bounds,
+                    options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                    owner: self,
+                    userInfo: nil
+                )
+                addTrackingArea(area)
+            }
+
+            override func mouseMoved(with _: NSEvent) {
+                onMouseMoved?()
+            }
+
+            override func mouseEntered(with _: NSEvent) {
+                onMouseMoved?()
+            }
+        }
+    }
 
     // Hosts VideoPlayerView in its own borderless NSWindow and toggles native
     // fullscreen shortly after presenting. Replaces the prior .sheet()
