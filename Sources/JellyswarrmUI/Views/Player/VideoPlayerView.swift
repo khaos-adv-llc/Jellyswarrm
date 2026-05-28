@@ -27,6 +27,9 @@ public struct VideoPlayerView: View {
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
+    #if os(macOS)
+    @State private var isHovering: Bool = false
+    #endif
 
     public init(item: MediaItem, startFromBeginning: Bool = false, onClose: (() -> Void)? = nil) {
         self.item = item
@@ -58,6 +61,8 @@ public struct VideoPlayerView: View {
                     )
                     .ignoresSafeArea()
 
+                    // Button stays in the hierarchy so .keyboardShortcut(.escape)
+                    // keeps firing while the chrome is faded out.
                     Button(action: { performDismiss() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 28))
@@ -67,6 +72,11 @@ public struct VideoPlayerView: View {
                     .buttonStyle(.plain)
                     .padding(20)
                     .keyboardShortcut(.escape, modifiers: [])
+                    .opacity(isHovering ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.2), value: isHovering)
+                }
+                .onHover { hovering in
+                    isHovering = hovering
                 }
                 #else
                 SystemPlayerView(
