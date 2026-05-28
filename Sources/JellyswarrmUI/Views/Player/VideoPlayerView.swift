@@ -186,6 +186,8 @@ public struct VideoPlayerView: View {
             playerVC?.readyObservation = nil
 
             let resumeSeconds = playerVC?.resumeSeconds ?? 0
+            let itemId = playerVC?.itemId ?? ""
+            print("[Resume] Loaded \(Int64(resumeSeconds * 10_000_000)) ticks for \(itemId)")
             if resumeSeconds > 5.0 {
                 let resumeTime = CMTime(seconds: resumeSeconds, preferredTimescale: 600)
                 print("[Player] Seeking to resume position: \(resumeSeconds)s")
@@ -212,13 +214,17 @@ public struct VideoPlayerView: View {
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }
             let ticks = Int64(seconds * 10_000_000)
-            let defaults = UserDefaults(suiteName: "group.com.jellyswarrm.shared")
+            // iOS 26 beta breaks App Group UserDefaults reads — use standard
+            // UserDefaults for resume ticks since they're only consumed in-process.
+            let defaults = UserDefaults.standard
             let key = "resume_\(vc.itemId)"
             if let duration = player.currentItem?.duration.seconds,
                duration.isFinite, duration > 0, seconds > duration - 60 {
-                defaults?.removeObject(forKey: key)
+                defaults.removeObject(forKey: key)
+                print("[Resume] Cleared ticks for \(vc.itemId) (near end of media)")
             } else {
-                defaults?.set(Double(ticks), forKey: key)
+                defaults.set(Double(ticks), forKey: key)
+                print("[Resume] Saved \(ticks) ticks for \(vc.itemId)")
             }
         }
 

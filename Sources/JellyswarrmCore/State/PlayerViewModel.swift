@@ -177,8 +177,10 @@ public final class PlayerViewModel {
             } else if let userData = item.userData, userData.hasProgress {
                 positionTicks = userData.playbackPositionTicks
             } else {
-                let defaults = UserDefaults(suiteName: "group.com.jellyswarrm.shared")
-                let localTicks = defaults?.double(forKey: "resume_\(item.id)") ?? 0
+                // iOS 26 beta breaks App Group UserDefaults reads — resume ticks
+                // live in standard UserDefaults (per-process, no sharing needed).
+                let localTicks = UserDefaults.standard.double(forKey: "resume_\(item.id)")
+                print("[Resume] Loaded \(Int64(localTicks)) ticks for \(item.id)")
                 if localTicks > 0 {
                     positionTicks = Int64(localTicks)
                 }
