@@ -57,6 +57,21 @@ public actor HLSProxyServer {
         }
     }
 
+    /// Stop the proxy and release its port. Must be called between playback
+    /// sessions — leaving the old NWListener bound causes "Broken pipe" /
+    /// "Connection reset by peer" on the next playback attempt when the new
+    /// AVPlayer hits stale connections on the previously-bound port.
+    public func stop() {
+        if let listener {
+            listener.stateUpdateHandler = nil
+            listener.newConnectionHandler = nil
+            listener.cancel()
+            print("[HLSProxy] Stopped (was on port \(port))")
+        }
+        listener = nil
+        port = 0
+    }
+
     /// Rewrite a Jellyfin HLS URL to go through the proxy.
     public func proxyURL(for originalURL: URL) -> URL? {
         guard port > 0 else {

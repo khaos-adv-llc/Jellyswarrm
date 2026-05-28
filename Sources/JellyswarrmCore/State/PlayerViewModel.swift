@@ -134,11 +134,14 @@ public final class PlayerViewModel {
 
             durationTicks = source.runTimeTicks ?? item.runtimeTicks ?? 0
 
-            // Resolve resume position BEFORE building the playback URL so the
-            // HLS transcode URL can include StartTimeTicks. AVPlayer cannot
-            // reliably seek mid-HLS (caused segment-124 jumps in the past) —
-            // instead we ask Jellyfin to generate a playlist that begins at
-            // the resume point, and the AVPlayer plays from its timeline 0.
+            // Resolve resume position. Resume works via a local AVPlayer
+            // seek AFTER the player is ready for display — we do NOT pass
+            // StartTimeTicks to Jellyfin's HLS endpoint. Jellyfin would
+            // happily generate a playlist whose first segment starts at the
+            // resume timestamp, but the resulting segment has a PTS
+            // discontinuity (no keyframe at PTS 0) and AVFoundation rejects
+            // it with the "Playback Prohibited" icon. Letting Jellyfin
+            // transcode from PTS 0 and seeking client-side avoids this.
             if startFromBeginning {
                 positionTicks = 0
                 print("[Resume] Caller requested start from beginning")
@@ -185,8 +188,7 @@ public final class PlayerViewModel {
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
                     server: server,
-                    token: token,
-                    startTimeTicks: positionTicks
+                    token: token
                 )
                 // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD).
                 // Must await start() to avoid race where proxyURL() is called before
@@ -335,6 +337,14 @@ public final class PlayerViewModel {
             print("[Progress] Stopped at \(positionTicks) ticks")
         }
 
+        // Tear down the loopback HLS proxy. Leaving the previous NWListener
+        // bound between sessions produces "Broken pipe" / "Connection reset
+        // by peer" on the next playback attempt as AVPlayer hits stale
+        // connections on the old port.
+        if isHLSTranscode {
+            await HLSProxyServer.shared.stop()
+        }
+
         isPlaying = false
         hasStartedPlayback = false
         currentItem = nil
@@ -452,8 +462,7 @@ public final class PlayerViewModel {
         source: MediaSource,
         audioStreamIndex: Int,
         server: JellyfinServer,
-        token: String,
-        startTimeTicks: Int64
+        token: String
     ) -> URL? {
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
@@ -472,12 +481,6 @@ public final class PlayerViewModel {
             URLQueryItem(name: "TranscodingMaxAudioChannels", value: "2"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
         ]
-        if startTimeTicks > 0 {
-            // Jellyfin generates the m3u8 starting from this tick offset, so
-            // segment 0 IS the resume position. The AVPlayer must NOT seek
-            // afterward — its timeline 0 is already correct.
-            items.append(URLQueryItem(name: "StartTimeTicks", value: "\(startTimeTicks)"))
-        }
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         items.append(URLQueryItem(name: "api_key", value: token))
         components.queryItems = items

@@ -140,15 +140,16 @@ public struct VideoPlayerView: View {
             // attached to a real window causes AVPlayerViewController to
             // reset position to 0 once it mounts.
             #else
-            // HLS transcoded playlists have StartTimeTicks baked in — the
-            // AVPlayer timeline starts at 0 which IS the resume position. Only
-            // direct-stream needs a post-load seek.
-            let shouldSeek = !vm.isHLSTranscode && vm.positionTicks > 0
+            // Seek-based resume for both direct-stream and HLS transcode.
+            // Passing StartTimeTicks to Jellyfin breaks AVFoundation playback
+            // (first .ts segment lacks a keyframe at PTS 0); transcoding from
+            // the start and seeking client-side avoids the issue.
+            let shouldSeek = vm.positionTicks > 0
             if shouldSeek {
-                let seconds = vm.positionTicks.ticksToSeconds
-                print("[Player] Seeking to resume position: \(vm.positionTicks) ticks (\(seconds)s)")
+                let resumeTicks = vm.positionTicks
+                print("[Player] Seeking to resume position: \(resumeTicks) ticks")
                 await avPlayer.seek(
-                    to: CMTime(seconds: seconds, preferredTimescale: 600),
+                    to: CMTime(value: resumeTicks, timescale: 10_000_000),
                     toleranceBefore: .zero,
                     toleranceAfter: .zero
                 )
@@ -157,26 +158,21 @@ public struct VideoPlayerView: View {
             avPlayer.play()
             await vm.notifyPlaybackStarted()
 
-            // Track position every 10s so PlayerViewModel.reportProgress sends
-            // the live time, and persist a local backup for offline resume.
+            // Track position every 10s. AVPlayer is already seeked to the
+            // resume point, so currentTime IS the true content position.
             let itemId = item.id
-            let resumeOffsetTicks: Int64 = vm.isHLSTranscode ? vm.positionTicks : 0
             let interval = CMTime(seconds: 10, preferredTimescale: 600)
             _ = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak avPlayer] time in
                 guard let player = avPlayer,
                       player.timeControlStatus == .playing else { return }
                 let seconds = time.seconds
                 guard seconds.isFinite, seconds > 0 else { return }
-                let ticks = Int64(seconds * 10_000_000) + resumeOffsetTicks
+                let ticks = Int64(seconds * 10_000_000)
                 vm.positionTicks = ticks
                 let defaults = UserDefaults.standard
                 let key = "resume_\(itemId)"
-                let contentSeconds = seconds + Double(resumeOffsetTicks) / 10_000_000
-                let contentDuration: Double? = {
-                    guard let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 else { return nil }
-                    return d + Double(resumeOffsetTicks) / 10_000_000
-                }()
-                if let duration = contentDuration, contentSeconds > duration - 60 {
+                let duration = player.currentItem?.duration.seconds
+                if let duration, duration.isFinite, duration > 0, seconds > duration - 60 {
                     defaults.removeObject(forKey: key)
                 } else {
                     defaults.set(Double(ticks), forKey: key)
@@ -212,11 +208,11 @@ public struct VideoPlayerView: View {
         playerVC.onDismissed = { dismiss() }
         playerVC.itemId = item.id
         playerVC.resumeSeconds = playerVM.positionTicks.ticksToSeconds
-        // For HLS transcoded streams, Jellyfin generated the playlist with
-        // StartTimeTicks already baked in — segment 0 IS the resume position,
-        // so the AVPlayer must NOT seek. Only direct-stream playback needs a
-        // post-load seek to reach the resume point.
-        playerVC.shouldSeekForResume = !playerVM.isHLSTranscode
+        // Both direct-stream and HLS-transcode resume by seeking the local
+        // AVPlayer after isReadyForDisplay fires. Passing StartTimeTicks to
+        // Jellyfin causes the first .ts segment to lack a keyframe at PTS 0,
+        // which AVFoundation rejects with the "Playback Prohibited" icon.
+        playerVC.shouldSeekForResume = true
 
         let vmRef = playerVM
         let readyObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { [weak playerVC, weak player] vc, change in
@@ -233,7 +229,10 @@ public struct VideoPlayerView: View {
                 Task { @MainActor in await vmRef.notifyPlaybackStarted() }
             }
             if shouldSeek && resumeSeconds > 5.0 {
-                let resumeTime = CMTime(seconds: resumeSeconds, preferredTimescale: 600)
+                // Jellyfin ticks are 10-million-ths of a second; use that
+                // timescale directly so the seek target is exact rather than
+                // quantized to 600Hz.
+                let resumeTime = CMTime(value: resumeTicks, timescale: 10_000_000)
                 print("[Player] Seeking to resume position: \(resumeTicks) ticks (\(resumeSeconds)s)")
                 player.seek(
                     to: resumeTime,
@@ -246,11 +245,7 @@ public struct VideoPlayerView: View {
                 }
             } else {
                 player.play()
-                if resumeSeconds > 5.0 {
-                    print("[Player] Playing from HLS playlist offset (\(resumeSeconds)s baked in)")
-                } else {
-                    print("[Player] Playing from start")
-                }
+                print("[Player] Playing from start")
                 notifyStarted()
             }
         }
@@ -258,32 +253,21 @@ public struct VideoPlayerView: View {
 
         let interval = CMTime(seconds: 10, preferredTimescale: 600)
         let vm = playerVM
-        // HLS transcoded playlists are generated with StartTimeTicks baked in,
-        // so the AVPlayer's timeline starts at 0 for what is actually the
-        // resume position. Add the original resume ticks back when saving so
-        // server/local progress reflects true content position.
-        let resumeOffsetTicks: Int64 = vm.isHLSTranscode ? vm.positionTicks : 0
+        // The AVPlayer is seeked to the resume point client-side after
+        // readyForDisplay, so its currentTime is already the true content
+        // position — no offset adjustment needed.
         playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player] time in
             guard let player = player,
                   let vc = playerVC,
                   player.timeControlStatus == .playing else { return }
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }
-            let ticks = Int64(seconds * 10_000_000) + resumeOffsetTicks
-            // Push ticks into PlayerViewModel so its 10s server-progress reporter
-            // sends the live position (not the stale value from playback start).
+            let ticks = Int64(seconds * 10_000_000)
             vm.positionTicks = ticks
-            // Local backup so resume works offline and if the server report fails.
             let defaults = UserDefaults.standard
             let key = "resume_\(vc.itemId)"
-            // For HLS, compare against (duration + offset) since the AVPlayer's
-            // duration is the transcoded playlist length, not the full item.
-            let contentDuration: Double? = {
-                guard let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 else { return nil }
-                return d + Double(resumeOffsetTicks) / 10_000_000
-            }()
-            let contentSeconds = seconds + Double(resumeOffsetTicks) / 10_000_000
-            if let duration = contentDuration, contentSeconds > duration - 60 {
+            let duration = player.currentItem?.duration.seconds
+            if let duration, duration.isFinite, duration > 0, seconds > duration - 60 {
                 defaults.removeObject(forKey: key)
                 print("[Resume] Cleared ticks for \(vc.itemId) (near end of media)")
             } else {
