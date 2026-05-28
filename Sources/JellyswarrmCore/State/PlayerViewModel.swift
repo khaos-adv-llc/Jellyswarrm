@@ -185,31 +185,27 @@ public final class PlayerViewModel {
             if startFromBeginning || isHLSTranscode {
                 positionTicks = 0
             } else {
-                // UserData.PlaybackPositionTicks is NOT in the PlaybackInfo
-                // response — it's on the item itself. Fetch the latest item
-                // detail so we get the freshest server-stored resume position
-                // (the MediaItem passed in may be stale from a list endpoint).
-                var serverTicks: Int64 = 0
-                if let detail = try? await api.getItemDetail(server: server, token: token, itemId: item.id),
-                   let userData = detail.userData {
-                    serverTicks = userData.playbackPositionTicks
-                    print("[Resume] Server UserData position: \(serverTicks) ticks for \(item.id)")
-                } else {
-                    print("[Resume] Failed to fetch item detail UserData for \(item.id)")
-                }
+                // Priority 1: local UserDefaults backup. Updated every 10s by
+                // the player's periodic time observer, so it's always at least
+                // as fresh as the server (which only updates on Stop reports
+                // — and a Stop from a just-dismissed session races with this
+                // new load).
+                let key = "resume_\(item.id)"
+                let localRaw = UserDefaults.standard.double(forKey: key)
+                print("[Resume] Reading key: \(key), raw value: \(localRaw)")
+                let localTicks = Int64(localRaw)
 
-                if serverTicks > 0 {
-                    positionTicks = serverTicks
+                if localTicks > 0 {
+                    positionTicks = localTicks
+                    print("[Resume] Local position: \(localTicks) ticks for \(item.id)")
+                } else if let detail = try? await api.getItemDetail(server: server, token: token, itemId: item.id),
+                          let userData = detail.userData,
+                          userData.playbackPositionTicks > 0 {
+                    // Priority 2: server UserData (cross-device fallback).
+                    positionTicks = userData.playbackPositionTicks
+                    print("[Resume] Server UserData position: \(positionTicks) ticks for \(item.id)")
                 } else {
-                    // Fallback: local backup (UserDefaults.standard, per-process).
-                    let localRaw = UserDefaults.standard.double(forKey: "resume_\(item.id)")
-                    print("[Resume] Local UserDefaults raw value for resume_\(item.id): \(localRaw)")
-                    if localRaw > 0 {
-                        positionTicks = Int64(localRaw)
-                        print("[Resume] Local fallback: \(positionTicks) ticks")
-                    } else {
-                        print("[Resume] No saved position — starting from beginning")
-                    }
+                    print("[Resume] No saved position — starting from beginning")
                 }
             }
 
