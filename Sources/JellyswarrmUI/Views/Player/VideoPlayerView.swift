@@ -197,6 +197,9 @@ public struct VideoPlayerView: View {
 
         func makeUIViewController(context: Context) -> AVPlayerViewController {
             let playerVC = AVPlayerViewController()
+            // Bind player synchronously here — deferring to updateUIViewController
+            // causes the AVPlayerLayer to initialize without a player and renders
+            // black video on iOS 26.
             playerVC.player = player
             playerVC.showsPlaybackControls = true
             playerVC.videoGravity = .resizeAspect
@@ -206,6 +209,9 @@ public struct VideoPlayerView: View {
                 playerVC.entersFullScreenWhenPlaybackBegins = false
             #endif
             playerVC.delegate = context.coordinator
+
+            print("[Player] AVPlayerViewController player set: \(playerVC.player != nil), readyForDisplay: \(playerVC.isReadyForDisplay)")
+            context.coordinator.observeReadyForDisplay(on: playerVC)
 
             #if os(iOS)
                 // Fallback for the UIKit idle-timer bug when AVPlayerViewController
@@ -229,6 +235,7 @@ public struct VideoPlayerView: View {
         func updateUIViewController(_ playerVC: AVPlayerViewController, context _: Context) {
             if playerVC.player !== player {
                 playerVC.player = player
+                print("[Player] AVPlayerViewController player rebound in update: readyForDisplay=\(playerVC.isReadyForDisplay)")
             }
         }
 
@@ -241,10 +248,17 @@ public struct VideoPlayerView: View {
             let onControlsVisibilityChange: ((Bool) -> Void)?
             weak var playerVC: AVPlayerViewController?
             private var hideTask: Task<Void, Never>?
+            private var readyForDisplayObservation: NSKeyValueObservation?
 
             init(onDismiss: @escaping () -> Void, onControlsVisibilityChange: ((Bool) -> Void)? = nil) {
                 self.onDismiss = onDismiss
                 self.onControlsVisibilityChange = onControlsVisibilityChange
+            }
+
+            func observeReadyForDisplay(on playerVC: AVPlayerViewController) {
+                readyForDisplayObservation = playerVC.observe(\.isReadyForDisplay, options: [.new]) { vc, _ in
+                    print("[Player] AVPlayerViewController readyForDisplay → \(vc.isReadyForDisplay)")
+                }
             }
 
             #if os(iOS)
