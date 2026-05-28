@@ -16,6 +16,7 @@ public struct VideoPlayerView: View {
     @State private var player: AVPlayer?
     @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
+    @State private var vmBound: Bool = false
     #if os(iOS)
     @State private var didPresent: Bool = false
     #endif
@@ -82,8 +83,21 @@ public struct VideoPlayerView: View {
             // per item. Without this, mutating @State playerVM inside the task
             // triggers a re-render which restarts the task, causing double
             // PlaybackInfo calls and competing AVPlayer instances.
-            let vm = PlayerViewModel(appState: appState)
-            playerVM = vm
+            //
+            // Bind the VM to the real AppState exactly once. If the view is
+            // ever re-presented (e.g. fullScreenCover binding toggles, or two
+            // navigation pushes race), reuse the existing VM whose
+            // _loadingStarted guard already prevents a second PlaybackInfo
+            // fetch. Creating a fresh VM each time would give each
+            // load-attempt its own guard, defeating the protection.
+            let vm: PlayerViewModel
+            if vmBound {
+                vm = playerVM
+            } else {
+                vm = PlayerViewModel(appState: appState)
+                playerVM = vm
+                vmBound = true
+            }
             await vm.loadPlayback(for: item, startFromBeginning: startFromBeginning)
             guard let url = vm.playbackURL else {
                 print("[Player] ERROR: no playbackURL after loadPlayback")

@@ -69,9 +69,24 @@ public final class PlayerViewModel {
         // twice concurrently. Two PlaybackInfo POSTs + two transcode sessions
         // confuses Jellyfin and contributes to AVPlayer hitting an empty
         // segment 0 (FigPlayer_MediaServiceDied / -12860).
-        guard !_loadingStarted else { return }
+        guard !_loadingStarted else {
+            print("[Player] loadPlayback already in progress, ignoring duplicate call")
+            return
+        }
         _loadingStarted = true
         defer { if playbackURL == nil { _loadingStarted = false } }
+
+        // Tear down any existing session before starting a new one. Without
+        // this, a previous session's HLSProxyServer listener can stay bound
+        // (port != 0) while a second loadPlayback racing past the guard sees
+        // a stale port and produces broken-pipe errors. stop() is a no-op
+        // when hasStartedPlayback is false, but it always tears down the
+        // proxy and clears state.
+        if hasStartedPlayback || isHLSTranscode || playbackURL != nil {
+            await stop()
+            // stop() resets _loadingStarted; re-arm it so we keep the guard.
+            _loadingStarted = true
+        }
 
         guard let server = appState.currentServer,
               let token = appState.tokenForCurrentServer() else { return }

@@ -25,8 +25,17 @@ public actor HLSProxyServer {
     }()
 
     /// Start the proxy. Safe to call multiple times — only starts once.
-    public func start() async throws {
-        guard listener == nil else { return }
+    /// Returns the bound port (existing port if already running).
+    @discardableResult
+    public func start() async throws -> UInt16 {
+        // Debounce: if a listener is already bound to a port, return it
+        // immediately. Without this, a racing second call could land after a
+        // prior session whose stop() did not run, and start a competing
+        // listener that the previous proxyURL() result no longer points to.
+        if listener != nil, port != 0 {
+            return port
+        }
+        guard listener == nil else { return port }
 
         let params = NWParameters.tcp
         let listener = try NWListener(using: params, on: .any)
@@ -55,6 +64,7 @@ public actor HLSProxyServer {
             self.port = assignedPort.rawValue
             print("[HLSProxy] Listening on 127.0.0.1:\(self.port)")
         }
+        return port
     }
 
     /// Stop the proxy and release its port. Must be called between playback
