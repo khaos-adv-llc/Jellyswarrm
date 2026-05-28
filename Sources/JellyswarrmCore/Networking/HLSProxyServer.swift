@@ -62,14 +62,18 @@ public actor HLSProxyServer {
     /// "Connection reset by peer" on the next playback attempt when the new
     /// AVPlayer hits stale connections on the previously-bound port.
     public func stop() {
+        // Reset port FIRST so any in-flight call to proxyURL() or a racing
+        // start() sees port=0 and refuses to construct a URL against the
+        // stale listener.
+        let previousPort = port
+        port = 0
         if let listener {
             listener.stateUpdateHandler = nil
             listener.newConnectionHandler = nil
             listener.cancel()
-            print("[HLSProxy] Stopped (was on port \(port))")
+            print("[HLSProxy] Stopped (was on port \(previousPort))")
         }
         listener = nil
-        port = 0
     }
 
     /// Rewrite a Jellyfin HLS URL to go through the proxy.

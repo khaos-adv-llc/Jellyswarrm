@@ -14,6 +14,7 @@ public struct VideoPlayerView: View {
 
     @State private var playerVM: PlayerViewModel
     @State private var player: AVPlayer?
+    @State private var timeObserverToken: Any?
     @State private var controlsVisible: Bool = false
     #if os(iOS)
     @State private var didPresent: Bool = false
@@ -160,10 +161,15 @@ public struct VideoPlayerView: View {
 
             // Track position every 10s. AVPlayer is already seeked to the
             // resume point, so currentTime IS the true content position.
+            // The token is stored so onDisappear can remove the observer — an
+            // unremoved observer strongly retains its closure (which captures
+            // vm), keeping the PlayerViewModel and its progress-reporting Task
+            // alive past view teardown.
             let itemId = item.id
             let interval = CMTime(seconds: 10, preferredTimescale: 600)
-            _ = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak avPlayer] time in
+            timeObserverToken = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak avPlayer, weak vm] time in
                 guard let player = avPlayer,
+                      let vm,
                       player.timeControlStatus == .playing else { return }
                 let seconds = time.seconds
                 guard seconds.isFinite, seconds > 0 else { return }
@@ -186,7 +192,16 @@ public struct VideoPlayerView: View {
         }
         .onDisappear {
             playerVM.stopChapterObserver()
-            Task { await playerVM.stop() }
+            // Remove the non-iOS periodic time observer so its closure stops
+            // retaining the view model. iOS uses the observer stored on
+            // DismissAwareAVPlayerViewController, which is removed in
+            // viewDidDisappear there.
+            if let token = timeObserverToken {
+                player?.removeTimeObserver(token)
+                timeObserverToken = nil
+            }
+            let vm = playerVM
+            Task { await vm.stop() }
             player?.pause()
             player = nil
         }
@@ -252,13 +267,15 @@ public struct VideoPlayerView: View {
         playerVC.readyObservation = readyObservation
 
         let interval = CMTime(seconds: 10, preferredTimescale: 600)
-        let vm = playerVM
         // The AVPlayer is seeked to the resume point client-side after
         // readyForDisplay, so its currentTime is already the true content
-        // position — no offset adjustment needed.
-        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player] time in
+        // position — no offset adjustment needed. Capture vm weakly so the
+        // observer closure cannot keep the view model alive past view
+        // teardown if the observer is somehow not removed.
+        playerVC.timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak playerVC, weak player, weak vm = playerVM] time in
             guard let player = player,
                   let vc = playerVC,
+                  let vm,
                   player.timeControlStatus == .playing else { return }
             let seconds = time.seconds
             guard seconds.isFinite, seconds > 0 else { return }

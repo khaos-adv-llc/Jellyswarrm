@@ -276,11 +276,19 @@ public final class PlayerViewModel {
 
     private func startProgressReporting() {
         reportingTask?.cancel()
-        reportingTask = Task {
+        // Capture the session id at arming time. If the VM is reused or the
+        // session changes, the closure exits without reporting. Combined with
+        // [weak self], this double-guards against stale progress reports from
+        // a teardown-survived task: when the VM has no other strong refs,
+        // `self?` becomes nil and the loop exits, letting the VM deallocate.
+        let capturedSessionId = playSessionId
+        let interval = reportingInterval
+        reportingTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(reportingInterval * 1_000_000_000))
-                guard !Task.isCancelled else { break }
-                await reportProgress()
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                guard !Task.isCancelled, let self else { break }
+                guard self.playSessionId == capturedSessionId else { break }
+                await self.reportProgress()
             }
         }
     }
@@ -313,11 +321,17 @@ public final class PlayerViewModel {
         // would either tear down the in-flight session or let a re-run of
         // .task spawn a duplicate PlaybackInfo / transcode session.
         guard hasStartedPlayback else {
+            // Still cancel the reporting task — if one somehow got armed
+            // (defensive; shouldn't happen since notifyPlaybackStarted() arms
+            // it), we don't want it leaking past view teardown.
+            reportingTask?.cancel()
+            reportingTask = nil
             print("[Progress] Skipping stop report — playback never started")
             return
         }
 
         reportingTask?.cancel()
+        reportingTask = nil
         stopChapterObserver()
 
         if let item = currentItem,
