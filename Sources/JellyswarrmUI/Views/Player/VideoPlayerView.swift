@@ -93,27 +93,13 @@ public struct VideoPlayerView: View {
                 return
             }
 
-            if vm.requiresTranscodeWarmup {
-                await warmupTranscode(url: url)
-            }
-
-            // Use AVURLAsset with network options so AVPlayer handles the
-            // stream correctly regardless of Content-Length / accept-ranges headers.
-            // stream.mp4 from Jellyfin has accept-ranges: none and no Content-Length —
-            // AVPlayer needs allowsCellularAccess + explicit network timeout hints.
             let asset = AVURLAsset(url: url, options: [
-                "AVURLAssetHTTPHeaderFieldsKey": [:],
                 AVURLAssetPreferPreciseDurationAndTimingKey: false,
             ])
             let playerItem = AVPlayerItem(asset: asset)
-            playerItem.preferredPeakBitRate = 0
-            // Don't let AVPlayer stall waiting for seekability — stream.mp4 is
-            // served without Content-Length so AVPlayer must buffer forward only.
             playerItem.preferredForwardBufferDuration = 10
             vm.configurePlayerItem(playerItem)
             let avPlayer = AVPlayer(playerItem: playerItem)
-            // Disable buffering rate evaluation — stream.mp4 has no Content-Length
-            // so AVPlayer waits forever. Play immediately and let it buffer as it goes.
             avPlayer.automaticallyWaitsToMinimizeStalling = false
 
             // Observe AVPlayerItem status for diagnostics
@@ -169,86 +155,6 @@ public struct VideoPlayerView: View {
         }
     }
 
-    /// Kicks off the Jellyfin HLS transcode session and waits until segment 0
-    /// is downloadable before returning. AVPlayer otherwise hits an empty
-    /// segment and the iOS media services process crashes with -12860.
-    private func warmupTranscode(url: URL) async {
-        // Step 1: Fetch master.m3u8 to start the transcode session on the server.
-        // The master playlist contains a single variant pointing to main.m3u8.
-        guard let (masterData, _) = try? await URLSession.shared.data(from: url) else { return }
-        let masterText = String(data: masterData, encoding: .utf8) ?? ""
-
-        // Step 2: Extract the main.m3u8 relative URL from the master playlist.
-        // It appears as a bare relative path on the line after #EXT-X-STREAM-INF.
-        let masterLines = masterText.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        guard let mainLine = masterLines.first(where: { $0.hasPrefix("main.m3u8") }) else {
-            print("[Player] Warmup: could not find main.m3u8 in master playlist")
-            return
-        }
-
-        // Step 3: Resolve main.m3u8 against the master URL's base.
-        // master URL: https://host/Videos/{id}/master.m3u8?params
-        // main.m3u8 line: main.m3u8?params  (relative)
-        guard var baseComponents = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
-        let basePath = baseComponents.path
-        let mainPath = basePath.replacingOccurrences(of: "master.m3u8", with: "main.m3u8")
-        guard let scheme = baseComponents.scheme, let host = baseComponents.host else { return }
-        let serverBase = "\(scheme)://\(host)"
-        guard let mainURL = URL(string: serverBase + "/" + mainLine.replacingOccurrences(of: "main.m3u8?", with: mainPath.dropFirst() + "?")) else {
-            baseComponents.path = mainPath
-            if let qStart = mainLine.firstIndex(of: "?") {
-                let qString = String(mainLine[mainLine.index(after: qStart)...])
-                baseComponents.query = qString
-            }
-            guard let fallbackURL = baseComponents.url else { return }
-            await pollSegment0(from: fallbackURL, serverBase: serverBase)
-            return
-        }
-        await pollSegment0(from: mainURL, serverBase: serverBase)
-    }
-
-    private func pollSegment0(from mainURL: URL, serverBase: String) async {
-        guard let (mainData, _) = try? await URLSession.shared.data(from: mainURL) else {
-            print("[Player] Warmup: could not fetch main.m3u8")
-            return
-        }
-        let mainText = String(data: mainData, encoding: .utf8) ?? ""
-        let mainLines = mainText.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-        guard let seg0Line = mainLines.first(where: { $0.contains(".ts") && !$0.hasPrefix("#") }) else {
-            print("[Player] Warmup: could not find segment 0 in main.m3u8")
-            return
-        }
-
-        guard let mainURLComponents = URLComponents(url: mainURL, resolvingAgainstBaseURL: false) else { return }
-        let mainPath = mainURLComponents.path
-        let videoBase = (mainPath as NSString).deletingLastPathComponent
-
-        let seg0String: String
-        if seg0Line.hasPrefix("http") {
-            seg0String = seg0Line
-        } else {
-            seg0String = serverBase + videoBase + "/" + seg0Line
-        }
-
-        guard let seg0URL = URL(string: seg0String) else {
-            print("[Player] Warmup: could not construct segment 0 URL from: \(seg0Line)")
-            return
-        }
-
-        print("[Player] Warmup polling segment 0: \(seg0URL.absoluteString.prefix(120))...")
-
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
-            if let response = try? await URLSession.shared.data(from: seg0URL).1 as? HTTPURLResponse,
-               response.statusCode == 200 {
-                print("[Player] Transcode warmed up — segment 0 ready")
-                return
-            }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
-        print("[Player] Transcode warmup timeout — proceeding anyway")
-    }
 }
 
 // MARK: - System AVPlayerViewController (iOS, iPadOS, tvOS, macOS)

@@ -24,12 +24,6 @@ public final class PlayerViewModel {
     public var audioStreamIndex: Int?
     public var subtitleStreamIndex: Int?
 
-    /// True when the chosen playbackURL is an HLS transcode that the
-    /// Jellyfin server must spin up before AVPlayer can fetch segments.
-    /// Used by the view layer to pre-warm the transcode session before
-    /// handing the URL to AVPlayer (avoids -12860 media services crash).
-    public private(set) var requiresTranscodeWarmup: Bool = false
-
     // Synchronous mutex for loadPlayback. `@Observable` properties have async
     // observation semantics — two concurrent callers can both see isLoading
     // == false before either sets it true. A plain stored Bool gives us
@@ -116,48 +110,32 @@ public final class PlayerViewModel {
             let audioCodec = audioStream?.codec?.lowercased() ?? ""
             let audioIsCompatible = AudioCompatibility.isDirectPlayable(audioCodec)
 
-            let videoStream = resolvedSource.mediaStreams?.first(where: { $0.type == .video })
-            let videoCodec = videoStream?.codec?.lowercased() ?? "h264"
-            let videoIsHEVC = videoCodec.contains("hevc") || videoCodec == "h265"
-
             if audioIsCompatible {
                 print("[Player] Audio codec '\(audioCodec)' is direct-playable, using direct stream")
-            } else if videoIsHEVC {
-                print("[Player] Audio codec '\(audioCodec)' + HEVC — will stream.mp4 with AAC audio transcode")
             } else {
-                print("[Player] Audio codec '\(audioCodec)' — will stream.mp4 with AAC audio transcode")
+                print("[Player] Audio codec '\(audioCodec)' — will HLS-transcode to H.264+AAC (TS)")
             }
 
             if !audioIsCompatible {
-                // Incompatible audio (Opus, EAC3, TrueHD, DTS, FLAC) — use Jellyfin's
-                // /Videos/{id}/stream.mp4 endpoint: video passes through untouched,
-                // only audio is transcoded to AAC. This is what Jellyfin's web player
-                // does and produces a plain progressive HTTP stream that AVPlayer handles
-                // natively — no HLS, no fMP4, no segment polling needed.
-                requiresTranscodeWarmup = false
-                playbackURL = buildAudioTranscodeStreamURL(
+                // Incompatible audio (Opus, EAC3, TrueHD, DTS, FLAC) — transcode
+                // through Jellyfin's HLS endpoint using MPEG-TS segments with
+                // H.264 video + AAC audio. AVAudioSession is configured at app
+                // launch so -12860 will not recur.
+                playbackURL = buildHLSTranscodeURL(
                     itemId: item.id,
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
-                    videoCodec: videoCodec,
                     server: server,
                     token: token
                 )
-                print("[Player] Using stream.mp4 audio-transcode URL: \(playbackURL?.absoluteString ?? "-")")
+                print("[Player] Using HLS TS transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else if let directPath = resolvedSource.directStreamUrl {
                 // Server provided a direct stream path
-                requiresTranscodeWarmup = false
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
                 print("[Player] Using server-provided stream URL")
-            } else if let transPath = resolvedSource.transcodingUrl {
-                // Server provided a transcode path
-                requiresTranscodeWarmup = true
-                playbackURL = resolvePlaybackURL(path: transPath, server: server, token: token)
-                print("[Player] Using server-provided transcode URL")
             } else if resolvedSource.supportsDirectStream {
                 // Jellyfin didn't return a URL but says direct stream is supported.
                 // Construct the VideoStream URL manually — this is the standard pattern.
-                requiresTranscodeWarmup = false
                 playbackURL = buildDirectStreamURL(
                     source: resolvedSource,
                     server: server,
@@ -166,18 +144,6 @@ public final class PlayerViewModel {
                     subtitleIndex: chosenSub
                 )
                 print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
-            } else if resolvedSource.supportsTranscoding {
-                // Ask Jellyfin for a transcode URL by constructing the HLS endpoint
-                requiresTranscodeWarmup = true
-                playbackURL = buildTranscodeURL(
-                    itemId: item.id,
-                    source: resolvedSource,
-                    audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
-                    videoCodec: videoCodec,
-                    server: server,
-                    token: token
-                )
-                print("[Player] Using manually constructed transcode URL: \(playbackURL?.absoluteString ?? "-")")
             } else {
                 print("[Player] ERROR: no playback path available")
                 throw NetworkError.emptyResponse
@@ -359,103 +325,38 @@ public final class PlayerViewModel {
         return components.url
     }
 
-    /// Constructs a Jellyfin HLS transcode URL.
+    /// Constructs a Jellyfin HLS transcode URL that produces H.264 + AAC
+    /// inside MPEG-TS segments.
     ///
-    /// - For HEVC sources with incompatible audio: transcodes BOTH video → H.264 and
-    ///   audio → AAC in MPEG-TS segments. Jellyfin's fMP4 HLS output is broken
-    ///   (missing `#EXT-X-MAP` init segment, wrong `#EXT-X-VERSION`), so we cannot
-    ///   pass HEVC through — H.264 in TS is the only reliable path.
-    /// - For H.264 sources with incompatible audio: passes video through and only
-    ///   transcodes audio → AAC in MPEG-TS segments.
-    private func buildTranscodeURL(
+    /// We force `Container=ts` because Jellyfin's fMP4 HLS output is broken
+    /// (missing `#EXT-X-MAP` init segment, wrong `#EXT-X-VERSION` header).
+    /// `MaxVideoBitDepth=8` strips HDR which is required for H.264 output.
+    private func buildHLSTranscodeURL(
         itemId: String,
         source: MediaSource,
         audioStreamIndex: Int,
-        videoCodec: String,
         server: JellyfinServer,
         token: String
     ) -> URL? {
-        let lowerCodec = videoCodec.lowercased()
-        let isHEVC = lowerCodec.contains("hevc") || lowerCodec == "h265"
-        // Transcode HEVC → H.264, passthrough everything else (e.g. h264).
-        let outputVideoCodec = isHEVC ? "h264" : videoCodec
-        let transcodeReasons = isHEVC
-            ? "VideoCodecNotSupported,AudioCodecNotSupported"
-            : "AudioCodecNotSupported"
-
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
         let path = "Videos/\(itemId)/master.m3u8"
         guard var components = URLComponents(string: base + path) else { return nil }
         var items: [URLQueryItem] = [
-            URLQueryItem(name: "MediaSourceId", value: source.id),
             URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
-            URLQueryItem(name: "api_key", value: token),
+            URLQueryItem(name: "MediaSourceId", value: source.id),
+            URLQueryItem(name: "VideoCodec", value: "h264"),
             URLQueryItem(name: "AudioCodec", value: "aac"),
+            URLQueryItem(name: "AudioBitrate", value: "192000"),
+            URLQueryItem(name: "VideoBitrate", value: "8000000"),
+            URLQueryItem(name: "MaxVideoBitDepth", value: "8"),
+            URLQueryItem(name: "Container", value: "ts"),
+            URLQueryItem(name: "TranscodingMaxAudioChannels", value: "2"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
-            URLQueryItem(name: "VideoCodec", value: outputVideoCodec),
-            URLQueryItem(name: "TranscodingContainer", value: "ts"),
-            URLQueryItem(name: "SegmentContainer", value: "ts"),
-            URLQueryItem(name: "TranscodeReasons", value: transcodeReasons),
-            URLQueryItem(name: "MinSegments", value: "2"),
-            URLQueryItem(name: "BreakOnNonKeyFrames", value: "true"),
-            URLQueryItem(name: "MaxVideoBitrate", value: "8000000"),
-            URLQueryItem(name: "VideoBitrate", value: "4000000"),
-            URLQueryItem(name: "MaxWidth", value: "1920"),
-            URLQueryItem(name: "MaxHeight", value: "1080"),
-            URLQueryItem(name: "RequireAvc", value: "true"),
-            URLQueryItem(name: "RequireNonAnamorphic", value: "true"),
-            URLQueryItem(name: "EnableMpegtsM2TsMode", value: "false"),
-            URLQueryItem(name: "static", value: "false"),
         ]
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
-        components.queryItems = items
-        return components.url
-    }
-
-
-    /// Constructs a Jellyfin progressive-stream URL that passes video through
-    /// and transcodes only the audio to AAC.
-    ///
-    /// Uses `/Videos/{id}/stream.mp4` — the same endpoint Jellyfin's web player
-    /// uses for HEVC direct-stream + audio transcode. Produces a single progressive
-    /// HTTP response that AVPlayer handles without any HLS machinery.
-    ///
-    /// Works for both HEVC and H.264 sources — the video codec is passed through
-    /// unchanged; only the audio is re-encoded to AAC LC.
-    private func buildAudioTranscodeStreamURL(
-        itemId: String,
-        source: MediaSource,
-        audioStreamIndex: Int,
-        videoCodec: String,
-        server: JellyfinServer,
-        token: String
-    ) -> URL? {
-        // Always request H.264 output — even for HEVC sources.
-        // HEVC passthrough via stream.mp4 fails on iOS debug builds because
-        // VideoToolbox HEVC hardware decode requires a release-signed binary.
-        // H.264 is software-decodable and works in all signing contexts.
-        // On release builds with proper entitlements, Jellyfin will still
-        // receive the HEVC source and produce H.264+AAC output efficiently.
-        let outputVideoCodec = "h264"
-
-        let base = server.baseURL.absoluteString.hasSuffix("/")
-            ? server.baseURL.absoluteString
-            : server.baseURL.absoluteString + "/"
-        let path = "Videos/\(itemId)/stream.mp4"
-        guard var components = URLComponents(string: base + path) else { return nil }
-        var items: [URLQueryItem] = [
-            URLQueryItem(name: "MediaSourceId", value: source.id),
-            URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
-            URLQueryItem(name: "api_key", value: token),
-            URLQueryItem(name: "VideoCodec", value: outputVideoCodec),
-            URLQueryItem(name: "AudioCodec", value: "aac"),
-            URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
-            URLQueryItem(name: "MaxVideoBitrate", value: "8000000"),
-            URLQueryItem(name: "Static", value: "false"),
-        ]
-        if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
+        items.append(URLQueryItem(name: "api_key", value: token))
         components.queryItems = items
         return components.url
     }
