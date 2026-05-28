@@ -26,6 +26,16 @@ public final class DiscoverViewModel {
     public var upcomingMovies: [SeerrMovieResult] = []
     public var upcomingTV: [SeerrTvResult] = []
 
+    /// Movies extracted from the mixed trending feed.
+    public var trendingMovies: [SeerrMovieResult] {
+        trendingItems.compactMap { if case let .movie(m) = $0 { return m } else { return nil } }
+    }
+
+    /// TV shows extracted from the mixed trending feed.
+    public var trendingTV: [SeerrTvResult] {
+        trendingItems.compactMap { if case let .tv(t) = $0 { return t } else { return nil } }
+    }
+
     public var movieGenres: [SeerrGenre] = []
     public var tvGenres: [SeerrGenre] = []
     public var selectedMovieGenre: SeerrGenre?

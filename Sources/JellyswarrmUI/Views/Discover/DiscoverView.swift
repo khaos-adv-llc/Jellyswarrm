@@ -82,25 +82,47 @@ public struct DiscoverView: View {
     // MARK: - Main Content
 
     private var discoverContent: some View {
-        @Bindable var discoverVM = discoverVM
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 32) {
-                tabSelector(selection: $discoverVM.activeTab)
-                    .padding(.horizontal, hPad)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 28) {
+                if !discoverVM.trendingMovies.isEmpty {
+                    movieRow(title: "Trending Movies", movies: discoverVM.trendingMovies)
+                }
 
-                switch discoverVM.activeTab {
-                case .trending:
-                    trendingSection
-                case .movies:
-                    moviesSection
-                case .tv:
-                    tvSection
-                case .upcoming:
-                    upcomingSection
+                if !discoverVM.trendingTV.isEmpty {
+                    tvRow(title: "Trending TV", shows: discoverVM.trendingTV)
+                }
+
+                if !discoverVM.trendingItems.isEmpty {
+                    mixedRow(title: "Popular This Week", items: discoverVM.trendingItems)
+                }
+
+                if !discoverVM.upcomingMovies.isEmpty {
+                    movieRow(title: "Upcoming Movies", movies: discoverVM.upcomingMovies)
+                }
+
+                if !discoverVM.upcomingTV.isEmpty {
+                    tvRow(title: "Upcoming TV Shows", shows: discoverVM.upcomingTV)
+                }
+
+                if !discoverVM.movies.isEmpty {
+                    movieRow(
+                        title: "Movies",
+                        movies: discoverVM.movies,
+                        loadMore: { await discoverVM.loadMoreMovies() }
+                    )
+                }
+
+                if !discoverVM.tvShows.isEmpty {
+                    tvRow(
+                        title: "TV Shows",
+                        shows: discoverVM.tvShows,
+                        loadMore: { await discoverVM.loadMoreTV() }
+                    )
                 }
             }
             .padding(.bottom, 24)
         }
+        .background(Color(red: 0.07, green: 0.07, blue: 0.07).ignoresSafeArea())
         #if !os(tvOS)
             .refreshable {
                 await discoverVM.loadInitialData()
@@ -108,54 +130,77 @@ public struct DiscoverView: View {
         #endif
     }
 
-    // MARK: - Tab Selector
-    //
-    // On iOS/macOS we use a segmented picker. On tvOS the segmented style is
-    // unavailable and the default (.menu) style is barely visible / hard to focus,
-    // so we render a row of focusable buttons instead.
+    // MARK: - Shelf Rows
 
-    @ViewBuilder
-    private func tabSelector(selection: Binding<DiscoverMediaTab>) -> some View {
-        #if os(tvOS)
-            HStack(spacing: 20) {
-                ForEach(DiscoverMediaTab.allCases) { tab in
-                    Button {
-                        selection.wrappedValue = tab
-                    } label: {
-                        Text(tab.rawValue)
-                            .font(.headline)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.card)
-                    .background(
-                        selection.wrappedValue == tab
-                            ? Color.accentColor.opacity(0.35)
-                            : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 12)
-                    )
-                }
-                Spacer()
-            }
-        #else
-            Picker("", selection: selection) {
-                ForEach(DiscoverMediaTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-        #endif
-    }
-
-    // MARK: - Trending
-
-    private var trendingSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("Trending Now")
+    private func movieRow(
+        title: String,
+        movies: [SeerrMovieResult],
+        loadMore: (() async -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(discoverVM.trendingItems) { result in
+                LazyHStack(spacing: 16) {
+                    ForEach(movies) { movie in
+                        SeerrMediaCardView(
+                            title: movie.title,
+                            year: movie.releaseYear,
+                            posterURL: movie.fullPosterURL,
+                            status: movie.availabilityStatus,
+                            cardWidth: cardWidth
+                        )
+                        .onTapGesture { selectedResult = .movie(movie) }
+                        .onAppear {
+                            if let loadMore, movie.id == movies.last?.id {
+                                Task { await loadMore() }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, hPad)
+            }
+        }
+    }
+
+    private func tvRow(
+        title: String,
+        shows: [SeerrTvResult],
+        loadMore: (() async -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 16) {
+                    ForEach(shows) { show in
+                        SeerrMediaCardView(
+                            title: show.name,
+                            year: show.releaseYear,
+                            posterURL: show.fullPosterURL,
+                            status: show.availabilityStatus,
+                            cardWidth: cardWidth
+                        )
+                        .onTapGesture { selectedResult = .tv(show) }
+                        .onAppear {
+                            if let loadMore, show.id == shows.last?.id {
+                                Task { await loadMore() }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, hPad)
+            }
+        }
+    }
+
+    private func mixedRow(title: String, items: [SeerrSearchResult]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 16) {
+                    ForEach(items) { result in
                         SeerrMediaCardView(
                             title: result.title,
                             year: nil,
@@ -167,127 +212,6 @@ public struct DiscoverView: View {
                     }
                 }
                 .padding(.horizontal, hPad)
-            }
-        }
-    }
-
-    // MARK: - Movies
-
-    private var moviesSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Genre pills
-            genreFilterRow(
-                genres: discoverVM.movieGenres,
-                selected: discoverVM.selectedMovieGenre
-            ) { genre in
-                Task { await discoverVM.filterMoviesByGenre(genre) }
-            }
-
-            sectionHeader("Movies")
-
-            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 16) {
-                ForEach(discoverVM.movies) { movie in
-                    SeerrMediaCardView(
-                        title: movie.title,
-                        year: movie.releaseYear,
-                        posterURL: movie.fullPosterURL,
-                        status: movie.availabilityStatus,
-                        cardWidth: gridCardWidth
-                    )
-                    .onTapGesture { selectedResult = .movie(movie) }
-                    .onAppear {
-                        if movie.id == discoverVM.movies.last?.id {
-                            Task { await discoverVM.loadMoreMovies() }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, hPad)
-
-            if discoverVM.isLoadingMore {
-                ProgressView().frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    // MARK: - TV
-
-    private var tvSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            genreFilterRow(
-                genres: discoverVM.tvGenres,
-                selected: discoverVM.selectedTVGenre
-            ) { genre in
-                Task { await discoverVM.filterTVByGenre(genre) }
-            }
-
-            sectionHeader("TV Shows")
-
-            LazyVGrid(columns: gridColumns, alignment: .center, spacing: 16) {
-                ForEach(discoverVM.tvShows) { show in
-                    SeerrMediaCardView(
-                        title: show.name,
-                        year: show.releaseYear,
-                        posterURL: show.fullPosterURL,
-                        status: show.availabilityStatus,
-                        cardWidth: gridCardWidth
-                    )
-                    .onTapGesture { selectedResult = .tv(show) }
-                    .onAppear {
-                        if show.id == discoverVM.tvShows.last?.id {
-                            Task { await discoverVM.loadMoreTV() }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, hPad)
-
-            if discoverVM.isLoadingMore {
-                ProgressView().frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    // MARK: - Upcoming
-
-    private var upcomingSection: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            VStack(alignment: .leading, spacing: 16) {
-                sectionHeader("Upcoming Movies")
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(discoverVM.upcomingMovies) { movie in
-                            SeerrMediaCardView(
-                                title: movie.title,
-                                year: movie.releaseYear,
-                                posterURL: movie.fullPosterURL,
-                                status: movie.availabilityStatus,
-                                cardWidth: cardWidth
-                            )
-                            .onTapGesture { selectedResult = .movie(movie) }
-                        }
-                    }
-                    .padding(.horizontal, hPad)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                sectionHeader("Upcoming TV Shows")
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(discoverVM.upcomingTV) { show in
-                            SeerrMediaCardView(
-                                title: show.name,
-                                year: show.releaseYear,
-                                posterURL: show.fullPosterURL,
-                                status: show.availabilityStatus,
-                                cardWidth: cardWidth
-                            )
-                            .onTapGesture { selectedResult = .tv(show) }
-                        }
-                    }
-                    .padding(.horizontal, hPad)
-                }
             }
         }
     }
@@ -350,40 +274,9 @@ public struct DiscoverView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.title3)
-            .fontWeight(.semibold)
+            .font(.title2)
+            .fontWeight(.bold)
             .padding(.horizontal, hPad)
-    }
-
-    private func genreFilterRow(
-        genres: [SeerrGenre],
-        selected: SeerrGenre?,
-        onSelect: @escaping (SeerrGenre?) -> Void
-    ) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                genrePill("All", isSelected: selected == nil) { onSelect(nil) }
-                ForEach(genres) { genre in
-                    genrePill(genre.name, isSelected: selected?.id == genre.id) { onSelect(genre) }
-                }
-            }
-            .padding(.horizontal, hPad)
-            .padding(.vertical, 4)
-        }
-    }
-
-    private func genrePill(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.callout)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(isSelected ? Color.accentColor : Color.gray.opacity(0.15))
-                .foregroundStyle(isSelected ? .white : .primary)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Platform sizing
@@ -402,17 +295,5 @@ public struct DiscoverView: View {
         #else
             return 130
         #endif
-    }
-
-    private var gridCardWidth: CGFloat {
-        #if os(tvOS)
-            return 240
-        #else
-            return 130
-        #endif
-    }
-
-    private var gridColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: gridCardWidth, maximum: gridCardWidth), spacing: 12, alignment: .top)]
     }
 }
