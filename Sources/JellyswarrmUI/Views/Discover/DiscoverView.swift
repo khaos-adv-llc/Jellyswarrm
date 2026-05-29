@@ -220,17 +220,17 @@ public struct DiscoverView: View {
     // MARK: - Empty / Error States
 
     private var noSeerrView: some View {
-        ContentUnavailableView {
-            Label("Seerr Not Configured", systemImage: "sparkles.tv")
-        } description: {
-            Text("Connect a Seerr server in Settings to browse and request content.")
-        } actions: {
-            NavigationLink(destination: SeerrSetupView()) {
-                Text("Connect Seerr")
-                    .fontWeight(.semibold)
-            }
-            .buttonStyle(.borderedProminent)
-        }
+        SeerrSetupPromptView()
+    }
+
+    /// True when the Jellyswarrm Jellyfin plugin auto-published an Overseerr
+    /// URL (or one was entered manually) but the AppState Seerr server hasn't
+    /// been set up yet. Discover tab uses this to keep showing the friendly
+    /// prompt instead of the error/loading screens.
+    private var seerrURLConfigured: Bool {
+        guard let url = UserDefaults(suiteName: "group.com.jellyswarrm.shared")?.string(forKey: "seerrURL")
+        else { return false }
+        return !url.isEmpty
     }
 
     private func errorView(_ error: NetworkError) -> some View {
