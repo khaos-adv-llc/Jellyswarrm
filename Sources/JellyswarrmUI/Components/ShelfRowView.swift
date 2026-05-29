@@ -55,6 +55,11 @@ public struct ShelfRowView<Item: Identifiable, Card: View>: View {
                 }
                 .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
                 .padding(.vertical, 4)
+                #if os(tvOS)
+                    // Cap the row height so a single oversized card cannot
+                    // stretch the shelf and break vertical alignment with peers.
+                    .frame(maxHeight: 220, alignment: .top)
+                #endif
             }
         }
     }

@@ -82,14 +82,12 @@ public struct MediaCardView: View {
         .frame(width: cardWidth, height: cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         #if os(tvOS)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                    .opacity(isFocused ? 1 : 0)
-            )
+            // Subtle scale + white glow on focus — NO white outline box, NO
+            // opaque fill behind the poster (those are the system .card style
+            // we are explicitly suppressing).
             .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+            .shadow(color: isFocused ? .white.opacity(0.35) : .clear, radius: 12)
+            .animation(.easeInOut(duration: 0.15), value: isFocused)
         #else
             .scaleEffect(isHovered ? 1.05 : 1.0)
             .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
@@ -241,14 +239,9 @@ public struct SeerrMediaCardView: View {
         .frame(width: cardWidth, height: cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         #if os(tvOS)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                    .opacity(isFocused ? 1 : 0)
-            )
             .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+            .shadow(color: isFocused ? .white.opacity(0.35) : .clear, radius: 12)
+            .animation(.easeInOut(duration: 0.15), value: isFocused)
         #else
             .scaleEffect(isHovered ? 1.05 : 1.0)
             .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)

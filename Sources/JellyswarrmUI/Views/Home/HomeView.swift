@@ -138,7 +138,9 @@ public struct HomeView: View {
 
     private var cardWidth: CGFloat {
         #if os(tvOS)
-            return 240
+            // 120pt × 180pt (2:3) — spec calls for compact cards so each shelf
+            // row fits comfortably under the 360pt hero on a 1080p TV.
+            return 120
         #else
             return 140
         #endif
