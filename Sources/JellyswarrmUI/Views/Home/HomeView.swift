@@ -61,6 +61,11 @@ public struct HomeView: View {
             }
             .background(AppleTVTheme.background.ignoresSafeArea())
             .navigationTitle("Home")
+            #if os(tvOS)
+                // tvOS: the tab bar already supplies top-level navigation, so the
+                // inline title pushes content down and hides the first shelf row.
+                .toolbar(.hidden, for: .navigationBar)
+            #endif
             .refreshable {
                 await libraryVM.refresh()
             }
@@ -218,7 +223,9 @@ public struct HeroHeaderView: View {
 
     private var heroHeight: CGFloat {
         #if os(tvOS)
-            return 540
+            // ~47% of usable screen on a 1080p TV — leaves the first shelf row
+            // visible below the hero without scrolling.
+            return 360
         #elseif os(macOS)
             return 400
         #else
