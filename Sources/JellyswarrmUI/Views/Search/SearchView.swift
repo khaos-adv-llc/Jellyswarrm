@@ -34,9 +34,18 @@ public struct SearchView: View {
                     if !searchVM.jellyfinResults.isEmpty {
                         Section("In Your Library") {
                             ForEach(searchVM.jellyfinResults) { item in
+                                #if os(tvOS)
+                                Button {
+                                    TVNavigationCoordinator.shared.push(MediaDetailView(item: item).environment(libraryVM))
+                                } label: {
+                                    libraryRow(item: item)
+                                }
+                                .buttonStyle(.plain)
+                                #else
                                 NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
                                     libraryRow(item: item)
                                 }
+                                #endif
                             }
                         }
                     }

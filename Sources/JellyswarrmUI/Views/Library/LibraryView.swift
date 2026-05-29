@@ -41,7 +41,12 @@ public struct LibraryView: View {
                         #if os(tvOS)
                             LazyVGrid(columns: tvColumns, spacing: 24) {
                                 ForEach(libraryVM.sections) { section in
-                                    NavigationLink(destination: LibrarySectionView(section: section)) {
+                                    Button {
+                                        TVNavigationCoordinator.shared.push(
+                                            LibrarySectionView(section: section)
+                                                .environment(libraryVM)
+                                        )
+                                    } label: {
                                         TVLibrarySectionCard(section: section)
                                     }
                                     .buttonStyle(.plain)

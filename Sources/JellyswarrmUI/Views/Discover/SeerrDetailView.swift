@@ -541,11 +541,7 @@ public struct RequestFormView: View {
                 .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .clipShape(Capsule())
         }
-        #if os(tvOS)
-            .buttonStyle(.card)
-        #else
-            .buttonStyle(.plain)
-        #endif
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
