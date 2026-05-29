@@ -179,6 +179,7 @@ public struct LibrarySectionView: View {
         self.section = section
     }
     @Environment(LibraryViewModel.self) private var libraryVM
+    @Environment(AppState.self) private var appState
 
     @State private var items: [MediaItem] = []
     @State private var isLoading = false
@@ -221,58 +222,12 @@ public struct LibrarySectionView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            if isLoading, items.isEmpty {
-                ProgressView()
-                    .tint(.white)
-                    .padding(.top, 80)
-            } else {
-                if totalCount > 0 {
-                    HStack {
-                        Text("\(totalCount) \(itemNoun)")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.white.opacity(0.7))
-                        Spacer()
-                    }
-                    .padding(.horizontal, hPad)
-                    .padding(.top, 12)
-                }
-                LazyVGrid(columns: columns, alignment: .center, spacing: 20) {
-                    ForEach(items) { item in
-                        NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
-                            MediaCardView(
-                                item: item,
-                                imageURL: libraryVM.imageURL(for: item, type: .primary, maxWidth: 300),
-                                cardWidth: cardWidth
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear {
-                            // Load next page when near the end
-                            if item.id == items.last?.id, items.count < totalCount {
-                                Task { await loadNextPage() }
-                            }
-                        }
-                    }
-
-                    if isLoading, !items.isEmpty {
-                        ProgressView()
-                            .tint(.white)
-                            .gridCellColumns(columns.count)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, hPad)
-                .padding(.vertical, 16)
-
-                if !isLoading, totalCount > 0 {
-                    Text("\(items.count) of \(totalCount) \(itemNoun)")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .padding(.bottom, 24)
-                }
-            }
+        Group {
+            #if os(tvOS)
+                tvBody
+            #else
+                nonTVBody
+            #endif
         }
         .background(AppleTVTheme.background.ignoresSafeArea())
         #if os(tvOS)
@@ -302,6 +257,117 @@ public struct LibrarySectionView: View {
         }
         .task { await reload() }
     }
+
+    // MARK: - tvOS — UIKit grid with native parallax
+
+    #if os(tvOS)
+        private var tvBody: some View {
+            VStack(spacing: 0) {
+                if totalCount > 0 {
+                    HStack {
+                        Text(section.name)
+                            .font(AppleTVTheme.sectionHeaderFont)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text("\(totalCount) \(itemNoun)")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(.horizontal, AppleTVTheme.safeInset)
+                    .padding(.top, 24)
+                    .padding(.bottom, 8)
+                }
+
+                if isLoading, items.isEmpty {
+                    Spacer()
+                    ProgressView().tint(.white)
+                    Spacer()
+                } else {
+                    TVLibraryGrid(
+                        items: items,
+                        onSelect: { item in
+                            TVNavigationCoordinator.shared.push(
+                                MediaDetailView(item: item)
+                                    .environment(libraryVM)
+                                    .environment(appState)
+                            )
+                        },
+                        onPaginate: {
+                            if items.count < totalCount {
+                                Task { await loadNextPage() }
+                            }
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .onAppear {
+                AppStateProvider.currentServer = appState.currentServer
+            }
+            .onChange(of: appState.currentServer) { _, new in
+                AppStateProvider.currentServer = new
+            }
+        }
+    #endif
+
+    // MARK: - iOS / macOS — SwiftUI LazyVGrid
+
+    #if !os(tvOS)
+        private var nonTVBody: some View {
+            ScrollView {
+                if isLoading, items.isEmpty {
+                    ProgressView()
+                        .tint(.white)
+                        .padding(.top, 80)
+                } else {
+                    if totalCount > 0 {
+                        HStack {
+                            Text("\(totalCount) \(itemNoun)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white.opacity(0.7))
+                            Spacer()
+                        }
+                        .padding(.horizontal, hPad)
+                        .padding(.top, 12)
+                    }
+                    LazyVGrid(columns: columns, alignment: .center, spacing: 20) {
+                        ForEach(items) { item in
+                            NavigationLink(destination: MediaDetailView(item: item).environment(libraryVM)) {
+                                MediaCardView(
+                                    item: item,
+                                    imageURL: libraryVM.imageURL(for: item, type: .primary, maxWidth: 300),
+                                    cardWidth: cardWidth
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .onAppear {
+                                if item.id == items.last?.id, items.count < totalCount {
+                                    Task { await loadNextPage() }
+                                }
+                            }
+                        }
+
+                        if isLoading, !items.isEmpty {
+                            ProgressView()
+                                .tint(.white)
+                                .gridCellColumns(columns.count)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, hPad)
+                    .padding(.vertical, 16)
+
+                    if !isLoading, totalCount > 0 {
+                        Text("\(items.count) of \(totalCount) \(itemNoun)")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .padding(.bottom, 24)
+                    }
+                }
+            }
+        }
+    #endif
 
     private func setSortBy(_ sort: String) {
         sortBy = sort
