@@ -69,6 +69,9 @@ public struct LibraryView: View {
             }
             .background(AppleTVTheme.background.ignoresSafeArea())
             .navigationTitle("Library")
+            #if os(tvOS)
+                .toolbar(.hidden, for: .navigationBar)
+            #endif
             .refreshable {
                 await libraryVM.refresh()
             }

@@ -69,6 +69,9 @@ public struct SearchView: View {
             .listStyle(.grouped)
             #endif
             .navigationTitle("Search")
+            #if os(tvOS)
+                .toolbar(.hidden, for: .navigationBar)
+            #endif
             .navigationDestination(for: MediaItem.self) { item in
                 MediaDetailView(item: item)
                     .environment(libraryVM)

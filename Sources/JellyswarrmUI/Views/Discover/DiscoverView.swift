@@ -56,6 +56,7 @@ public struct DiscoverView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Discover")
             #if os(tvOS)
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(item: $selectedResult) { target in
                     switch target {
                     case let .movie(m): SeerrDetailView(movie: m).environment(discoverVM)

@@ -161,6 +161,7 @@ public struct SettingsView: View {
             }
             .navigationTitle("Settings")
             #if os(tvOS)
+                .toolbar(.hidden, for: .navigationBar)
                 .padding(.top, 40)
             #endif
             .sheet(isPresented: $showAddServer) {
