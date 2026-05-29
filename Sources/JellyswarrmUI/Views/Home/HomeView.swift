@@ -209,7 +209,7 @@ public struct HeroHeaderView: View {
                     Text(overview)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(2)
+                        .lineLimit(overviewLineLimit)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -219,6 +219,19 @@ public struct HeroHeaderView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity)
+        #if os(tvOS)
+            // Clamp the entire hero so text cannot escape and overlap shelves below.
+            .frame(height: 360)
+            .clipped()
+        #endif
+    }
+
+    private var overviewLineLimit: Int {
+        #if os(tvOS)
+            return 3
+        #else
+            return 2
+        #endif
     }
 
     private var heroHeight: CGFloat {
