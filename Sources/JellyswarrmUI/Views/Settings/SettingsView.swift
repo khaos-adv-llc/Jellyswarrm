@@ -192,6 +192,8 @@ public struct PlaybackSettingsView: View {
     @AppStorage("maxBitrateMbps") private var maxBitrateMbps = 140
     @AppStorage("defaultSubtitleMode") private var defaultSubtitleMode = "off"
     @AppStorage("playbackEngine") private var playbackEngineRaw = PlaybackEngine.auto.rawValue
+    @AppStorage("allowHDRDirectPlay") private var allowHDRDirectPlay = true
+    @AppStorage("vlcDirectPlay") private var vlcDirectPlay = true
 
     private var playbackEngine: Binding<PlaybackEngine> {
         Binding(
@@ -219,13 +221,28 @@ public struct PlaybackSettingsView: View {
 
             Section("Streaming") {
                 Toggle("Prefer Direct Play", isOn: $preferDirectPlay)
-                Picker("Max Bitrate", selection: $maxBitrateMbps) {
-                    Text("4 Mbps").tag(4)
-                    Text("8 Mbps").tag(8)
-                    Text("20 Mbps").tag(20)
-                    Text("40 Mbps").tag(40)
-                    Text("80 Mbps").tag(80)
-                    Text("140 Mbps (Max)").tag(140)
+            }
+
+            Section("Quality & HDR") {
+                Toggle("Allow HDR Direct Play", isOn: $allowHDRDirectPlay)
+                Text("When on, HDR10, HLG, and Dolby Vision content plays with full HDR — requires a compatible display. Turn off to force SDR on all content.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if playbackEngine.wrappedValue != .avFoundation {
+                    Toggle("VLC Direct Play (No Transcode)", isOn: $vlcDirectPlay)
+                    Text("VLC plays files directly without server transcoding, preserving original audio (TrueHD, DTS-HD, Atmos) and HDR video.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker("Max Streaming Bitrate", selection: $maxBitrateMbps) {
+                    Text("4 Mbps (SD)").tag(4)
+                    Text("8 Mbps (HD)").tag(8)
+                    Text("20 Mbps (Full HD)").tag(20)
+                    Text("40 Mbps (4K)").tag(40)
+                    Text("80 Mbps (4K HDR)").tag(80)
+                    Text("Unlimited").tag(0)
                 }
             }
 
