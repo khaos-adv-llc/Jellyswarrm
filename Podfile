@@ -5,7 +5,7 @@
 use_frameworks!
 
 # iOS target
-target 'Jellyswarm' do
+target 'Jellyswarrm' do
   platform :ios, '16.0'
   pod 'MobileVLCKit', '~> 3.3'
 end
@@ -17,7 +17,7 @@ target 'Jellyswarrm-tvOS' do
 end
 
 # macOS target
-target 'Jellyswarrm-macOS' do
+target 'jellyswarrm-macos' do
   platform :macos, '13.0'
   pod 'VLCKit', '~> 3.3'
 end
