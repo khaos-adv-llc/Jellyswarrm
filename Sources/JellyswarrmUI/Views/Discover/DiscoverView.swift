@@ -1,6 +1,6 @@
 // MARK: - DiscoverView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Seerr-powered discover section: browse trending, upcoming, by genre.
 // Items show availability status and request buttons directly.
 

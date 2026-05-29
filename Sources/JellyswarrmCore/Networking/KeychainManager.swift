@@ -1,6 +1,6 @@
 // MARK: - KeychainManager.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Security model:
 //   Per-user Keychain  → Jellyfin tokens, Seerr session cookies

@@ -1,6 +1,6 @@
 // MARK: - OnboardingWizardView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Multi-step onboarding wizard covering Jellyfin server setup, sign-in,
 // and optional Seerr connection. Used on first launch and on tvOS

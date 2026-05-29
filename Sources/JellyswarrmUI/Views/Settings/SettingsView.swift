@@ -1,6 +1,6 @@
 // MARK: - SettingsView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 
 import JellyswarrmCore
 import SwiftUI
@@ -142,7 +142,7 @@ public struct SettingsView: View {
                         "Version",
                         value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
                     )
-                    LabeledContent("License", value: "GPL v3")
+                    LabeledContent("License", value: "LGPL v2.1")
                     Link("Source Code", destination: URL(string: "https://github.com/khaos-adv-llc/jellyswarrm")!)
                     Link("Based on Fladder", destination: URL(string: "https://github.com/DonutWare/Fladder")!)
                 }

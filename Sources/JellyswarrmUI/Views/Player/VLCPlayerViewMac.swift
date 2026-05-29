@@ -1,6 +1,6 @@
 // MARK: - VLCPlayerViewMac.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 
 #if canImport(VLCKit) && os(macOS)
 import AppKit

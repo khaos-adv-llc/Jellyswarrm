@@ -1,6 +1,6 @@
 // MARK: - JellyfinSDKClient.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Thin wrapper around the official Jellyfin Swift SDK. Holds a per-server SDK
 // `JellyfinClient` keyed by server id and exposes typed helpers for the

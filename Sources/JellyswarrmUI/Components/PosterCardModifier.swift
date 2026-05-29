@@ -1,6 +1,6 @@
 // MARK: - PosterCardModifier.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // 2:3 portrait poster framing with rounded corners. Use instead of ad-hoc
 // frame+clipShape pairs so the aspect ratio and corner radius stay consistent
 // across MediaCardView, SeerrMediaCardView, and any future card view.

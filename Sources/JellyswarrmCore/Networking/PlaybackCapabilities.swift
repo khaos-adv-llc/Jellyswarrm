@@ -1,6 +1,6 @@
 // MARK: - PlaybackCapabilities.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Device-level hardware capability probing used to build a Jellyfin device
 // profile that maximises direct play. Apple Silicon and A-series chips have
 // dedicated decoders for HEVC, Dolby Vision (HEVC profiles 5/8), HDR10/HLG,

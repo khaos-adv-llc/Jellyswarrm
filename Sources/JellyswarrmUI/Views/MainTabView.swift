@@ -1,6 +1,6 @@
 // MARK: - MainTabView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Adaptive navigation: TabView on iOS/tvOS, NavigationSplitView on macOS/iPadOS landscape
 
 import JellyswarrmCore

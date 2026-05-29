@@ -1,6 +1,6 @@
 // MARK: - ShelfRowView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Reusable horizontal shelf with title header and platform-aware padding,
 // used to lay out card rows in the Apple TV–style home and discover screens.
 

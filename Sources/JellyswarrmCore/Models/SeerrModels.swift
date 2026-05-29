@@ -1,6 +1,6 @@
 // MARK: - SeerrModels.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Models derived from seerr-open-api.json
 
 import Foundation

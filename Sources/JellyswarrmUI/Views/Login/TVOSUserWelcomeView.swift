@@ -1,6 +1,6 @@
 // MARK: - TVOSUserWelcomeView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Shown on tvOS when a new system profile (user account) is detected and the
 // app has at least one server already configured by another profile.

@@ -1,6 +1,6 @@
 // MARK: - SearchView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Unified search across Jellyfin library + Seerr discover
 
 import JellyswarrmCore

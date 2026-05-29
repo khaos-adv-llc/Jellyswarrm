@@ -1,6 +1,6 @@
 // MARK: - TVUserSwitchView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Shown when a new tvOS system user is detected on this Apple TV. We offer
 // either a quick-connect to the server URL the previous user(s) had configured,

@@ -3,7 +3,7 @@
 > A modern, native Apple client for [Jellyfin](https://jellyfin.org) — built with SwiftUI, designed for iOS, iPadOS, tvOS, and macOS.
 
 [![CI](https://github.com/jellyswarrm/Jellyswarrm/actions/workflows/ci.yml/badge.svg)](https://github.com/jellyswarrm/Jellyswarrm/actions/workflows/ci.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![License: LGPL v2.1](https://img.shields.io/badge/License-LGPLv2.1-blue.svg)](LICENSE)
 [![Swift 6](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017%20%7C%20iPadOS%2017%20%7C%20tvOS%2017%20%7C%20macOS%2014-lightgrey.svg)](#requirements)
 
@@ -154,7 +154,7 @@ project/
 | `@Observable` (not `ObservableObject`) | Swift 5.9 Observation — more efficient, no `@Published` boilerplate |
 | Shared vs per-user Keychain | tvOS multi-user requirement: server configs shared, tokens isolated |
 | Zero third-party dependencies | Smaller attack surface; no supply chain risk; pure SPM |
-| GPL v3 + App Store exception | Keeps source open while permitting App Store distribution |
+| LGPL v2.1 | Compatible with VLCKit and other LGPL libraries while permitting linking from App Store binaries |
 
 ---
 
@@ -197,9 +197,9 @@ Please **do not** open public issues for security vulnerabilities. See [SECURITY
 
 ## License
 
-Jellyswarrm is licensed under the **GNU General Public License v3.0** with an **App Store Distribution Exception**.
+Jellyswarrm is licensed under the **GNU Lesser General Public License v2.1 (or later)**.
 
-The GPL v3 ensures the source remains open. The App Store exception permits distribution through Apple's App Store without conflicting with Apple's standard terms.
+LGPL v2.1 keeps the source open while remaining compatible with VLCKit and the other LGPL components Jellyswarrm links against.
 
 See [LICENSE](LICENSE) for the full text.
 

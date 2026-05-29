@@ -1,6 +1,6 @@
 // MARK: - ExpandableText.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Long descriptions get truncated with a "Show more" toggle so they don't run
 // off the screen on phones. Threshold is character count — cheap and good enough.
 

@@ -1,6 +1,6 @@
 // MARK: - HDRDetector.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 
 import AVFoundation
 import CoreMedia

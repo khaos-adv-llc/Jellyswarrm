@@ -1,6 +1,6 @@
 // MARK: - AppState.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // tvOS multi-user strategy:
 //   "Runs as Current User" entitlement → OS re-launches app per tvOS profile.

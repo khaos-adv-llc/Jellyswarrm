@@ -1,6 +1,6 @@
 // MARK: - Int64+Ticks.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Jellyfin stores durations and positions as 100-nanosecond ticks
 
 import Foundation

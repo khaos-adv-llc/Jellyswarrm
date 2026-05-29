@@ -1,6 +1,6 @@
 // MARK: - SeerrAuthMode.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Tracks how each Seerr server expects users to authenticate.
 // This determines the per-user onboarding flow on tvOS when a new profile

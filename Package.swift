@@ -1,6 +1,6 @@
 // swift-tools-version: 5.10
 // Jellyswarrm — A native SwiftUI Jellyfin client
-// GPL v3 with App Store exception. Inspired by Fladder (https://github.com/DonutWare/Fladder)
+// LGPL-2.1-or-later. Inspired by Fladder (https://github.com/DonutWare/Fladder)
 
 import PackageDescription
 

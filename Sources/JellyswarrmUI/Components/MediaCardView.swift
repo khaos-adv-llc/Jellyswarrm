@@ -1,6 +1,6 @@
 // MARK: - MediaCardView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 // Reusable poster card — handles focus engine on tvOS, tap on iOS/macOS
 
 import JellyswarrmCore

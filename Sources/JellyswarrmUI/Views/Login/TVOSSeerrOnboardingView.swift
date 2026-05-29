@@ -1,6 +1,6 @@
 // MARK: - TVOSSeerrOnboardingView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Handles per-user Seerr authentication after a successful Jellyfin login on tvOS.
 //

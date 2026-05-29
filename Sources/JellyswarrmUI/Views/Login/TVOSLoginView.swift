@@ -1,6 +1,6 @@
 // MARK: - TVOSLoginView.swift
 
-// Jellyswarrm — GPL v3 with App Store exception
+// Jellyswarrm — LGPL-2.1-or-later
 //
 // Primary login screen for tvOS.  Quick Connect is the default path (no keyboard
 // needed); password entry is available as a fallback.  After a successful Jellyfin
