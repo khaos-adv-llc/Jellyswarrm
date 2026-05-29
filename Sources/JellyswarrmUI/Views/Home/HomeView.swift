@@ -132,7 +132,8 @@ public struct HomeView: View {
                 MediaCardView(
                     item: item,
                     imageURL: posterURL(for: item, style: style),
-                    cardWidth: style.cardWidth
+                    cardWidth: style.cardWidth,
+                    cardHeight: style.cardHeight
                 )
             }
             .buttonStyle(.plain)
@@ -141,7 +142,8 @@ public struct HomeView: View {
                 MediaCardView(
                     item: item,
                     imageURL: posterURL(for: item, style: style),
-                    cardWidth: style.cardWidth
+                    cardWidth: style.cardWidth,
+                    cardHeight: style.cardHeight
                 )
             }
             .buttonStyle(.plain)

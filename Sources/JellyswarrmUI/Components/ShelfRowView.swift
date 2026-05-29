@@ -1,8 +1,9 @@
 // MARK: - ShelfRowView.swift
 
 // Jellyswarrm — LGPL-2.1-or-later
-// Reusable horizontal shelf with title header and platform-aware padding,
-// used to lay out card rows in the Apple TV–style home and discover screens.
+// Reusable horizontal shelf with title header. On tvOS every row carries
+// `.focusSection()` so the focus engine moves between rows on Up/Down rather
+// than diagonally hopping into the next visible card.
 
 import SwiftUI
 
@@ -22,12 +23,12 @@ public struct ShelfRowView<Item: Identifiable, Card: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(.title2)
+                .font(sectionHeaderFont)
                 .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
+                .foregroundStyle(AppleTVTheme.labelPrimary)
+                .padding(.leading, AppleTVTheme.shelfHorizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: AppleTVTheme.cardSpacing) {
@@ -36,13 +37,22 @@ public struct ShelfRowView<Item: Identifiable, Card: View>: View {
                     }
                 }
                 .padding(.horizontal, AppleTVTheme.shelfHorizontalPadding)
-                .padding(.vertical, 4)
-                #if os(tvOS)
-                    // Cap the row height so a single oversized card cannot
-                    // stretch the shelf and break vertical alignment with peers.
-                    .frame(maxHeight: 220, alignment: .top)
-                #endif
+                // Vertical padding so the focus scale doesn't clip into peers.
+                .padding(.vertical, 20)
             }
         }
+        #if os(tvOS)
+            // Required so Up/Down hops between rows instead of diagonally
+            // skating into a card in the next row.
+            .focusSection()
+        #endif
+    }
+
+    private var sectionHeaderFont: Font {
+        #if os(tvOS)
+            return AppleTVTheme.sectionHeaderFont
+        #else
+            return .title2
+        #endif
     }
 }

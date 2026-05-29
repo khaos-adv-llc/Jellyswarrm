@@ -1,7 +1,9 @@
 // MARK: - MediaCardView.swift
 
 // Jellyswarrm — LGPL-2.1-or-later
-// Reusable poster card — handles focus engine on tvOS, tap on iOS/macOS
+// Reusable poster card. tvOS focus is hand-rolled: scale + glow live ONLY on
+// the poster image so the title below stays steady. `.buttonStyle(.plain)`
+// plus `.focusEffectDisabled(true)` suppress the system white-box halo.
 
 import JellyswarrmCore
 import SwiftUI
@@ -11,12 +13,22 @@ public struct MediaCardView: View {
     let imageURL: URL?
     var showTitle: Bool = true
     var cardWidth: CGFloat = 150
+    /// nil → tall portrait (cardWidth * 1.5). Use a specific height for wide
+    /// (16:9) episode / continue-watching cards.
+    var cardHeightOverride: CGFloat?
 
-    public init(item: MediaItem, imageURL: URL?, showTitle: Bool = true, cardWidth: CGFloat = 150) {
+    public init(
+        item: MediaItem,
+        imageURL: URL?,
+        showTitle: Bool = true,
+        cardWidth: CGFloat = 150,
+        cardHeight: CGFloat? = nil
+    ) {
         self.item = item
         self.imageURL = imageURL
         self.showTitle = showTitle
         self.cardWidth = cardWidth
+        self.cardHeightOverride = cardHeight
     }
 
     #if os(tvOS)
@@ -25,25 +37,48 @@ public struct MediaCardView: View {
         @State private var isHovered: Bool = false
     #endif
 
-    var cardHeight: CGFloat { cardWidth * 1.5 }
+    private var focused: Bool {
+        #if os(tvOS)
+            return isFocused
+        #else
+            return isHovered
+        #endif
+    }
+
+    private var cardHeight: CGFloat {
+        cardHeightOverride ?? (cardWidth * 1.5)
+    }
+
+    private var cornerRadius: CGFloat { 12 }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            // Poster — scale + glow applied ONLY here, never to title.
             posterImage
+                .scaleEffect(focused ? AppleTVTheme.focusScale : 1.0)
+                .shadow(
+                    color: focused ? .white.opacity(AppleTVTheme.focusGlowOpacity) : .clear,
+                    radius: focused ? AppleTVTheme.focusGlowRadius : 0
+                )
+                .animation(.easeInOut(duration: AppleTVTheme.focusAnimDuration), value: focused)
+
             if showTitle {
                 cardLabel
             }
         }
         .frame(width: cardWidth)
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
         #if os(tvOS)
             .focusable()
             .focused($isFocused)
+            // Disable the system white outline; we draw our own scale + glow.
             .focusEffectDisabled(true)
         #else
             .onHover { isHovered = $0 }
         #endif
     }
+
+    // MARK: - Poster
 
     @State private var imageLoaded = false
 
@@ -54,45 +89,32 @@ public struct MediaCardView: View {
                 case let .success(image):
                     image
                         .resizable()
-                        .aspectRatio(2 / 3, contentMode: .fill)
+                        .aspectRatio(contentMode: .fill)
                         .opacity(imageLoaded ? 1 : 0)
                         .onAppear {
                             withAnimation(.easeIn(duration: 0.3)) { imageLoaded = true }
                         }
-                case .failure:
-                    placeholderView
-                case .empty:
+                case .failure, .empty:
                     placeholderView
                 @unknown default:
                     placeholderView
                 }
             }
-            .posterCard(width: cardWidth, cornerRadius: 12)
+            .frame(width: cardWidth, height: cardHeight)
+            .clipped()
 
-            // Progress bar overlay
-            if let userData = item.userData, userData.hasProgress {
-                progressOverlay(fraction: userData.normalizedProgress)
-            }
-
-            // Watched badge
+            // Watched checkmark
             if item.userData?.played == true {
                 watchedBadge
             }
+
+            // Progress bar — partially-played items only
+            if let pct = item.userData?.playedPercentage, pct > 0, pct < 100 {
+                progressOverlay(fraction: pct / 100.0)
+            }
         }
         .frame(width: cardWidth, height: cardHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        #if os(tvOS)
-            // Subtle scale + white glow on focus — NO white outline box, NO
-            // opaque fill behind the poster (those are the system .card style
-            // we are explicitly suppressing).
-            .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(color: isFocused ? .white.opacity(0.35) : .clear, radius: 12)
-            .animation(.easeInOut(duration: 0.15), value: isFocused)
-        #else
-            .scaleEffect(isHovered ? 1.05 : 1.0)
-            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
-        #endif
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
     private func progressOverlay(fraction: Double) -> some View {
@@ -104,7 +126,7 @@ public struct MediaCardView: View {
                         .fill(.black.opacity(0.4))
                         .frame(height: 4)
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(.white)
+                        .fill(AppleTVTheme.accentBlue)
                         .frame(width: geo.size.width * fraction, height: 4)
                 }
             }
@@ -115,48 +137,77 @@ public struct MediaCardView: View {
     }
 
     private var watchedBadge: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .foregroundStyle(.white, .black.opacity(0.6))
-            .font(.caption)
-            .padding(6)
+        HStack {
+            Spacer()
+            VStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.white, .black.opacity(0.6))
+                    .font(.title3)
+                    .padding(8)
+                Spacer()
+            }
+        }
     }
 
     private var placeholderView: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(
-                LinearGradient(
-                    colors: [Color(white: 0.15), Color(white: 0.10)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: cardWidth, height: cardHeight)
-            .overlay {
-                Image(systemName: "film")
-                    .foregroundStyle(.white.opacity(0.25))
-                    .font(.largeTitle)
-            }
+        ZStack {
+            Rectangle().fill(AppleTVTheme.cardBackground)
+            Image(systemName: "film")
+                .font(.system(size: 40))
+                .foregroundStyle(AppleTVTheme.labelSecondary)
+        }
+        .frame(width: cardWidth, height: cardHeight)
     }
+
+    // MARK: - Title / subtitle below poster (NOT scaled on focus)
 
     private var cardLabel: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(item.displayTitle)
-                .font(.caption)
+                .font(titleFont)
                 .fontWeight(.medium)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .foregroundStyle(.primary)
+                .foregroundStyle(
+                    focused
+                        ? AppleTVTheme.labelPrimary
+                        : AppleTVTheme.labelPrimary.opacity(AppleTVTheme.unfocusedOpacity)
+                )
 
-            Text(item.productionYear.map(String.init) ?? " ")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if let subtitle = cardSubtitle {
+                Text(subtitle)
+                    .font(subtitleFont)
+                    .foregroundStyle(AppleTVTheme.labelSecondary)
+                    .lineLimit(1)
+            }
         }
         .frame(width: cardWidth, alignment: .leading)
+        .padding(.horizontal, 4)
+    }
+
+    private var cardSubtitle: String? {
+        if let year = item.productionYear { return String(year) }
+        return nil
+    }
+
+    private var titleFont: Font {
+        #if os(tvOS)
+            return AppleTVTheme.cardTitleFont
+        #else
+            return .caption
+        #endif
+    }
+
+    private var subtitleFont: Font {
+        #if os(tvOS)
+            return AppleTVTheme.cardSubtitleFont
+        #else
+            return .caption2
+        #endif
     }
 }
 
-// MARK: - Seerr Card
+// MARK: - Seerr Card (unchanged — kept compatible)
 
 public struct SeerrMediaCardView: View {
     let title: String
@@ -179,11 +230,25 @@ public struct SeerrMediaCardView: View {
         @State private var isHovered: Bool = false
     #endif
 
+    private var focused: Bool {
+        #if os(tvOS)
+            return isFocused
+        #else
+            return isHovered
+        #endif
+    }
+
     var cardHeight: CGFloat { cardWidth * 1.5 }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             posterImage
+                .scaleEffect(focused ? AppleTVTheme.focusScale : 1.0)
+                .shadow(
+                    color: focused ? .white.opacity(AppleTVTheme.focusGlowOpacity) : .clear,
+                    radius: focused ? AppleTVTheme.focusGlowRadius : 0
+                )
+                .animation(.easeInOut(duration: AppleTVTheme.focusAnimDuration), value: focused)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -238,15 +303,6 @@ public struct SeerrMediaCardView: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        #if os(tvOS)
-            .scaleEffect(isFocused ? 1.08 : 1.0)
-            .shadow(color: isFocused ? .white.opacity(0.35) : .clear, radius: 12)
-            .animation(.easeInOut(duration: 0.15), value: isFocused)
-        #else
-            .scaleEffect(isHovered ? 1.05 : 1.0)
-            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
-        #endif
     }
 
     @ViewBuilder
