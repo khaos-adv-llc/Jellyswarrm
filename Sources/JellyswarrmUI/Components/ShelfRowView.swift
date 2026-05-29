@@ -6,24 +6,6 @@
 
 import SwiftUI
 
-public enum AppleTVTheme {
-    /// Near-black global background used across the app to mimic the Apple TV app.
-    public static let background = Color(red: 0.07, green: 0.07, blue: 0.07)
-
-    public static var shelfHorizontalPadding: CGFloat {
-        #if os(tvOS)
-            return 60
-        #elseif os(macOS)
-            return 32
-        #else
-            return 20
-        #endif
-    }
-
-    public static var shelfSpacing: CGFloat { 24 }
-    public static var cardSpacing: CGFloat { 16 }
-}
-
 public struct ShelfRowView<Item: Identifiable, Card: View>: View {
     let title: String
     let items: [Item]
