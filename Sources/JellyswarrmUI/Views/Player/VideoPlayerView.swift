@@ -612,8 +612,8 @@ public struct VideoPlayerView: View {
             vc.player = player
             vc.showsPlaybackControls = true
             vc.allowsPictureInPicturePlayback = true
-            vc.entersFullScreenWhenPlaybackBegins = true
-            vc.exitsFullScreenWhenPlaybackEnds = true
+            // entersFullScreenWhenPlaybackBegins / exitsFullScreenWhenPlaybackEnds
+            // are iOS/macOS-only — tvOS AVPlayerViewController is always full-screen.
             vc.delegate = context.coordinator
             // Defer seek + play until AVPlayerViewController reports
             // isReadyForDisplay. Seeking before the layer is attached makes
