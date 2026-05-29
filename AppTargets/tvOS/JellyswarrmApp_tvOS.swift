@@ -1,3 +1,10 @@
+// Jellyswarrm — LGPL-2.1-or-later
+//
+// tvOS app entry point lives in `Apps/tvOS/AppDelegate.swift` (pure UIKit),
+// which owns `@main`. The previous SwiftUI `App` here is gated out so the
+// tvOS target compiles cleanly with the new UIKit shell.
+
+#if !os(tvOS)
 import JellyswarrmCore
 import JellyswarrmUI
 import SwiftUI
@@ -19,3 +26,4 @@ struct JellyswarmApp: App {
         }
     }
 }
+#endif

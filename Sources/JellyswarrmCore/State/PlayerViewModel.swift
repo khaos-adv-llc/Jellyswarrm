@@ -84,6 +84,29 @@ public final class PlayerViewModel {
         self.appState = appState
     }
 
+    // MARK: - tvOS playback launch hook
+
+    /// Closure the tvOS app injects from `AppDelegate` to launch the UIKit
+    /// `VLCPlayerViewController` via `TVNavigationCoordinator.shared.present(_:)`.
+    ///
+    /// Lives in JellyswarrmCore (which cannot import UIKit / MobileVLCKit /
+    /// TVVLCKit) so the tvOS module owns the concrete view controller and
+    /// presentation stack. The previous `.fullScreenCover { TVPlayerRepresentable(...) }`
+    /// path is replaced by this single-modal UIKit present, eliminating
+    /// double-dismiss bugs on tvOS.
+    public nonisolated(unsafe) static var tvOSPlaybackLauncher: (@MainActor (URL, TimeInterval) -> Void)?
+
+    /// Invoke the tvOS playback launcher with the resolved playback URL and
+    /// current resume position. No-op if the launcher has not been wired up
+    /// (e.g. on non-tvOS targets, or before `AppDelegate` installs it).
+    public func launchTVOSPlayer() {
+        #if os(tvOS)
+        guard let url = playbackURL, let launcher = Self.tvOSPlaybackLauncher else { return }
+        let seconds = TimeInterval(positionTicks) / 10_000_000
+        launcher(url, seconds)
+        #endif
+    }
+
     // MARK: - Load Playback
 
     public func loadPlayback(for item: MediaItem, startFromBeginning: Bool = false) async {

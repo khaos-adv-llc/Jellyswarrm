@@ -114,19 +114,17 @@ public struct MediaDetailView: View {
             )
         }
         #else
-        .fullScreenCover(isPresented: $showPlayer) {
-            // tvOS still uses .fullScreenCover — TVPlayerRepresentable is
-            // designed to be the top-level view returned from the cover so
-            // UIKit hands it the full screen and routes Siri Remote focus.
-            //
-            // .fullScreenCover presents in a separate window scene on tvOS,
-            // which does not inherit the parent's @Environment values. Pass
-            // appState/libraryVM through explicitly so VideoPlayerView and
-            // its PlayerViewModel can resolve the current server.
-            VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
-                .id(displayItem.id)
-                .environment(appState)
-                .environment(libraryVM)
+        // tvOS: route through TVNavigationCoordinator so the UIKit VLC player
+        // is presented as a single full-screen modal — no SwiftUI
+        // .fullScreenCover layer, no double-dismiss when the user taps Menu.
+        .onChange(of: showPlayer) { _, newValue in
+            guard newValue else { return }
+            Task { @MainActor in
+                let vm = PlayerViewModel(appState: appState)
+                await vm.loadPlayback(for: displayItem, startFromBeginning: startFromBeginning)
+                vm.launchTVOSPlayer()
+                showPlayer = false
+            }
         }
         #endif
     }
