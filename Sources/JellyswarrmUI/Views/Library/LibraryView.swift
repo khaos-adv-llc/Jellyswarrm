@@ -15,6 +15,18 @@ public struct LibraryView: View {
         GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 20),
     ]
 
+    #if os(tvOS)
+        // Fixed 4-column layout fills a 1920pt screen with comfortably wide
+        // cards. .adaptive on tvOS produces 8-9 tiny columns + huge empty
+        // space when there are only a handful of sections.
+        private let tvColumns = [
+            GridItem(.fixed(380), spacing: 32),
+            GridItem(.fixed(380), spacing: 32),
+            GridItem(.fixed(380), spacing: 32),
+            GridItem(.fixed(380), spacing: 32),
+        ]
+    #endif
+
     public var body: some View {
         NavigationStack {
             Group {
@@ -31,15 +43,27 @@ public struct LibraryView: View {
                     )
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 24) {
-                            ForEach(libraryVM.sections) { section in
-                                NavigationLink(destination: LibrarySectionView(section: section)) {
-                                    librarySectionCard(section)
+                        #if os(tvOS)
+                            LazyVGrid(columns: tvColumns, spacing: 40) {
+                                ForEach(libraryVM.sections) { section in
+                                    NavigationLink(destination: LibrarySectionView(section: section)) {
+                                        TVLibrarySectionCard(section: section)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
-                        }
-                        .padding(gridPadding)
+                            .padding(gridPadding)
+                        #else
+                            LazyVGrid(columns: columns, spacing: 24) {
+                                ForEach(libraryVM.sections) { section in
+                                    NavigationLink(destination: LibrarySectionView(section: section)) {
+                                        librarySectionCard(section)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(gridPadding)
+                        #endif
                     }
                 }
             }
@@ -99,6 +123,50 @@ public struct LibraryView: View {
         .shadow(color: .black.opacity(0.5), radius: 8, y: 4)
     }
 }
+
+#if os(tvOS)
+    // tvOS-native section card. Drives its own focus styling via @FocusState
+    // and disables the system focus ring so neighbors aren't overlapped by a
+    // white rounded-rect halo.
+    private struct TVLibrarySectionCard: View {
+        let section: LibrarySection
+        @FocusState private var isFocused: Bool
+
+        var body: some View {
+            VStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(isFocused ? Color.white.opacity(0.15) : Color.white.opacity(0.08))
+                        .aspectRatio(16 / 9, contentMode: .fit)
+
+                    Image(systemName: section.collectionType?.systemImageName ?? "folder.fill")
+                        .font(.system(size: 56, weight: .light))
+                        .foregroundStyle(.white.opacity(isFocused ? 1.0 : 0.6))
+                }
+                .scaleEffect(isFocused ? 1.08 : 1.0)
+                .shadow(color: .black.opacity(isFocused ? 0.5 : 0), radius: 20, y: 8)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+
+                VStack(spacing: 4) {
+                    Text(section.name)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    if let count = section.childCount {
+                        Text("\(count) \(count == 1 ? "item" : "items")")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+            .focusable()
+            .focused($isFocused)
+            .focusEffectDisabled(true)
+        }
+    }
+#endif
 
 // MARK: - Library Section Grid
 
