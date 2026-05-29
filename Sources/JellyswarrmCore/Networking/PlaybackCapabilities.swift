@@ -53,4 +53,15 @@ public enum AudioCompatibility {
         guard let codec = codec?.lowercased(), !codec.isEmpty else { return false }
         return directPlayableCodecs.contains(codec)
     }
+
+    /// Codecs VLC handles natively that AVFoundation cannot direct-stream
+    public static let vlcCompatibleCodecs: Set<String> = [
+        "truehd", "mlp", "dts", "dtshd", "dts-hd", "dts-ma",
+        "eac3", "opus", "flac",
+    ]
+
+    public static func isVLCCompatible(_ codec: String?) -> Bool {
+        guard let codec = codec?.lowercased(), !codec.isEmpty else { return false }
+        return vlcCompatibleCodecs.contains(codec)
+    }
 }

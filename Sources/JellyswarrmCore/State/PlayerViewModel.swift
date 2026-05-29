@@ -166,7 +166,29 @@ public final class PlayerViewModel {
             self.container = resolvedSource.container?.lowercased() ?? ""
             let audioIsCompatible = AudioCompatibility.isDirectPlayable(audioCodec)
 
-            if audioIsCompatible {
+            // Read engine + direct-play preferences up front so we can decide whether
+            // to bypass the audio transcode path entirely. VLC handles all audio
+            // codecs natively, and on .auto we promote VLC-domain codecs to direct
+            // play (PlaybackEngineResolver will pick VLC for them anyway).
+            let prefRaw = UserDefaults.standard.string(forKey: "playbackEngine") ?? PlaybackEngine.auto.rawValue
+            let enginePref = PlaybackEngine(rawValue: prefRaw) ?? .auto
+            let vlcDirectPlay = UserDefaults.standard.object(forKey: "vlcDirectPlay") as? Bool ?? true
+            let vlcWillHandleAudio: Bool = {
+                switch enginePref {
+                case .vlc:
+                    return vlcDirectPlay
+                case .auto:
+                    return vlcDirectPlay && AudioCompatibility.isVLCCompatible(audioCodec)
+                case .avFoundation:
+                    return false
+                }
+            }()
+            let effectiveAudioCompatible = audioIsCompatible || vlcWillHandleAudio
+
+            if vlcWillHandleAudio && !audioIsCompatible {
+                print("[Player] VLC engine — bypassing audio transcode, forcing direct stream")
+            }
+            if effectiveAudioCompatible {
                 print("[Player] Audio codec '\(audioCodec)' is direct-playable, using direct stream")
             } else {
                 print("[Player] Audio codec '\(audioCodec)' — will HLS-transcode to H.264+AAC (TS)")
@@ -218,7 +240,7 @@ public final class PlayerViewModel {
                 print("[Resume] Starting from: \(positionTicks) ticks")
             }
 
-            if !audioIsCompatible {
+            if !effectiveAudioCompatible {
                 // Incompatible audio (Opus, EAC3, TrueHD, DTS, FLAC) — transcode
                 // through Jellyfin's HLS endpoint using MPEG-TS segments with
                 // H.264 video + AAC audio. AVAudioSession is configured at app
@@ -228,7 +250,8 @@ public final class PlayerViewModel {
                     source: resolvedSource,
                     audioStreamIndex: audioStream?.index ?? chosenAudio ?? 1,
                     server: server,
-                    token: token
+                    token: token,
+                    enginePref: enginePref
                 )
                 // Route through local proxy to convert HEAD→GET (Jellyfin returns 405 on HEAD).
                 // Must await start() to avoid race where proxyURL() is called before
@@ -242,20 +265,26 @@ public final class PlayerViewModel {
                 }
                 isHLSTranscode = true
                 print("[Player] HLS proxy URL: \(playbackURL?.absoluteString ?? "-")")
-            } else if let directPath = resolvedSource.directStreamUrl {
-                // Server provided a direct stream path
+            } else if !vlcWillHandleAudio, let directPath = resolvedSource.directStreamUrl {
+                // Server provided a direct stream path (AVFoundation-compatible audio).
+                // For VLC-bypass we skip this and manually construct the URL so we can
+                // honor mkv container + HDR bit-depth preferences.
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
                 isHLSTranscode = false
                 print("[Player] Using server-provided stream URL")
-            } else if resolvedSource.supportsDirectStream {
-                // Jellyfin didn't return a URL but says direct stream is supported.
-                // Construct the VideoStream URL manually — this is the standard pattern.
+            } else if resolvedSource.supportsDirectStream || vlcWillHandleAudio {
+                // Manually construct the direct-stream URL. Used both for the standard
+                // direct-play path (when Jellyfin didn't echo a URL) and for the VLC
+                // bypass path, which always wants a manually crafted URL so we can
+                // pick the right container (mkv for VLC, mp4 otherwise) and respect
+                // the HDR bit-depth toggle.
                 playbackURL = buildDirectStreamURL(
                     source: resolvedSource,
                     server: server,
                     token: token,
                     audioIndex: chosenAudio,
-                    subtitleIndex: chosenSub
+                    subtitleIndex: chosenSub,
+                    enginePref: enginePref
                 )
                 isHLSTranscode = false
                 print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
@@ -507,12 +536,15 @@ public final class PlayerViewModel {
         server: JellyfinServer,
         token: String,
         audioIndex: Int?,
-        subtitleIndex: Int?
+        subtitleIndex: Int?,
+        enginePref: PlaybackEngine
     ) -> URL? {
-        // Always request MP4 container — AVPlayer handles HEVC/DV/HDR10 inside MP4
-        // natively on iPhone 12+ via VideoToolbox. MKV is not a streamable container.
-        // Jellyfin remuxes on the fly with no re-encode (fast, low CPU).
-        let container = "mp4"
+        // AVFoundation can only stream MP4 over HTTP. VLC handles MKV natively,
+        // so when VLC is the engine we ask Jellyfin to skip the MKV→MP4 remux
+        // for sources that are already MKV. Jellyfin still does a no-re-encode
+        // pass-through for HEVC/HDR10/DV, preserving HDR metadata either way.
+        let sourceContainer = source.container?.lowercased() ?? ""
+        let container: String = (enginePref == .vlc && sourceContainer == "mkv") ? "mkv" : "mp4"
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
@@ -524,6 +556,12 @@ public final class PlayerViewModel {
             URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
             URLQueryItem(name: "api_key", value: token),
         ]
+        // When the user has disabled HDR direct play, cap to 8-bit so AVFoundation
+        // receives an SDR stream even on the direct-play path.
+        let allowHDR = UserDefaults.standard.object(forKey: "allowHDRDirectPlay") as? Bool ?? true
+        if !allowHDR {
+            items.append(URLQueryItem(name: "MaxVideoBitDepth", value: "8"))
+        }
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         if let a = audioIndex { items.append(URLQueryItem(name: "AudioStreamIndex", value: "\(a)")) }
         if let s = subtitleIndex { items.append(URLQueryItem(name: "SubtitleStreamIndex", value: "\(s)")) }
@@ -542,25 +580,35 @@ public final class PlayerViewModel {
         source: MediaSource,
         audioStreamIndex: Int,
         server: JellyfinServer,
-        token: String
+        token: String,
+        enginePref: PlaybackEngine
     ) -> URL? {
         let base = server.baseURL.absoluteString.hasSuffix("/")
             ? server.baseURL.absoluteString
             : server.baseURL.absoluteString + "/"
         let path = "Videos/\(itemId)/main.m3u8"
         guard var components = URLComponents(string: base + path) else { return nil }
+        let bitratePref = UserDefaults.standard.integer(forKey: "maxBitrateMbps")
+        let videoBitrate = bitratePref > 0 ? bitratePref * 1_000_000 : 80_000_000
         var items: [URLQueryItem] = [
             URLQueryItem(name: "DeviceId", value: UIDeviceHelper.deviceId),
             URLQueryItem(name: "MediaSourceId", value: source.id),
             URLQueryItem(name: "VideoCodec", value: "h264"),
             URLQueryItem(name: "AudioCodec", value: "aac"),
             URLQueryItem(name: "AudioBitrate", value: "192000"),
-            URLQueryItem(name: "VideoBitrate", value: "8000000"),
-            URLQueryItem(name: "MaxVideoBitDepth", value: "8"),
+            URLQueryItem(name: "VideoBitrate", value: "\(videoBitrate)"),
             URLQueryItem(name: "Container", value: "ts"),
             URLQueryItem(name: "TranscodingMaxAudioChannels", value: "2"),
             URLQueryItem(name: "AudioStreamIndex", value: "\(audioStreamIndex)"),
         ]
+        // Only keep the HDR-stripping bit-depth cap when the user has not opted in
+        // to HDR direct play, OR when the engine is AVFoundation (HLS segments
+        // here are H.264 8-bit anyway — AVFoundation can't reliably tone-map HDR
+        // out of HLS on all devices). For VLC + HDR-on, leave bit depth uncapped.
+        let allowHDR = UserDefaults.standard.object(forKey: "allowHDRDirectPlay") as? Bool ?? true
+        if !(allowHDR && enginePref == .vlc) {
+            items.append(URLQueryItem(name: "MaxVideoBitDepth", value: "8"))
+        }
         if let tag = source.eTag { items.append(URLQueryItem(name: "Tag", value: tag)) }
         items.append(URLQueryItem(name: "api_key", value: token))
         components.queryItems = items
