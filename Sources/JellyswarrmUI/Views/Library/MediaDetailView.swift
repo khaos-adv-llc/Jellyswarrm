@@ -118,8 +118,15 @@ public struct MediaDetailView: View {
             // tvOS still uses .fullScreenCover — TVPlayerRepresentable is
             // designed to be the top-level view returned from the cover so
             // UIKit hands it the full screen and routes Siri Remote focus.
+            //
+            // .fullScreenCover presents in a separate window scene on tvOS,
+            // which does not inherit the parent's @Environment values. Pass
+            // appState/libraryVM through explicitly so VideoPlayerView and
+            // its PlayerViewModel can resolve the current server.
             VideoPlayerView(item: displayItem, startFromBeginning: startFromBeginning)
                 .id(displayItem.id)
+                .environment(appState)
+                .environment(libraryVM)
         }
         #endif
     }
@@ -280,7 +287,13 @@ public struct MediaDetailView: View {
                         } label: {
                             episodeRow(episode)
                         }
-                        .buttonStyle(.plain)
+                        #if os(tvOS)
+                            // .plain episode rows are invisible to the focus
+                            // engine; .card scales the row on focus.
+                            .buttonStyle(.card)
+                        #else
+                            .buttonStyle(.plain)
+                        #endif
                     }
                 }
             }
@@ -330,23 +343,43 @@ public struct MediaDetailView: View {
 
     private var backdropSection: some View {
         ZStack(alignment: .bottomLeading) {
-            GeometryReader { geo in
+            #if os(tvOS)
+                // GeometryReader inside a ScrollView is unreliable on tvOS
+                // (zero-height races during layout). Use a fixed height.
                 AsyncImage(url: headerImageURL) { phase in
                     switch phase {
                     case let .success(image):
                         image.resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: geo.size.width, height: geo.size.width * 9.0 / 16.0)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 540)
                             .clipped()
                     default:
                         Rectangle()
                             .fill(Color.white.opacity(0.06))
-                            .frame(width: geo.size.width, height: geo.size.width * 9.0 / 16.0)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 540)
                     }
                 }
-            }
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .frame(maxWidth: .infinity)
+            #else
+                GeometryReader { geo in
+                    AsyncImage(url: headerImageURL) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image.resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.width * 9.0 / 16.0)
+                                .clipped()
+                        default:
+                            Rectangle()
+                                .fill(Color.white.opacity(0.06))
+                                .frame(width: geo.size.width, height: geo.size.width * 9.0 / 16.0)
+                        }
+                    }
+                }
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+            #endif
 
             LinearGradient(
                 colors: [
@@ -460,7 +493,14 @@ public struct MediaDetailView: View {
                     .foregroundStyle(.black)
                     .clipShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                #if os(tvOS)
+                    // .card gives the play button visible focus scaling; on
+                    // tvOS .plain leaves it unhighlighted and unusable with
+                    // the Siri Remote.
+                    .buttonStyle(.card)
+                #else
+                    .buttonStyle(.plain)
+                #endif
             }
 
             // Restart — only when there's existing playback progress
