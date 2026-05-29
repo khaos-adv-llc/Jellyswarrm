@@ -272,12 +272,10 @@ public final class PlayerViewModel {
                 playbackURL = resolvePlaybackURL(path: directPath, server: server, token: token)
                 isHLSTranscode = false
                 print("[Player] Using server-provided stream URL")
-            } else if resolvedSource.supportsDirectStream || vlcWillHandleAudio {
-                // Manually construct the direct-stream URL. Used both for the standard
-                // direct-play path (when Jellyfin didn't echo a URL) and for the VLC
-                // bypass path, which always wants a manually crafted URL so we can
-                // pick the right container (mkv for VLC, mp4 otherwise) and respect
-                // the HDR bit-depth toggle.
+            } else {
+                // Audio is compatible (AVFoundation or VLC). Build direct stream URL.
+                // We reach here when the server didn't echo a directStreamUrl — construct
+                // it manually. buildDirectStreamURL always succeeds given a valid source.
                 playbackURL = buildDirectStreamURL(
                     source: resolvedSource,
                     server: server,
@@ -287,10 +285,7 @@ public final class PlayerViewModel {
                     enginePref: enginePref
                 )
                 isHLSTranscode = false
-                print("[Player] Using manually constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
-            } else {
-                print("[Player] ERROR: no playback path available")
-                throw NetworkError.emptyResponse
+                print("[Player] Using constructed direct stream URL: \(playbackURL?.absoluteString ?? "-")")
             }
 
             // NOTE: reportPlaybackStart is intentionally deferred until the
