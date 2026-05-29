@@ -41,6 +41,12 @@ public final class AppState {
     /// Server configs readable from shared storage — populated before per-user auth.
     public var sharedServerConfigs: [JellyfinServer] = []
 
+    /// True after the Jellyswarrm Jellyfin plugin has been discovered on the
+    /// current server and its Overseerr URL was persisted to shared storage.
+    /// Drives Settings UI hints (e.g. "auto-configured from server") and
+    /// suppresses the Discover-tab setup prompt on the next render.
+    public var seerrAutoConfigured: Bool = false
+
     // MARK: - UserDefaults Keys
 
     // Standard UserDefaults are per-user on tvOS with "Runs as Current User".
@@ -271,6 +277,22 @@ public final class AppState {
     public func completeLogin(server: JellyfinServer, token: String) {
         try? addServer(server, token: token)
         needsTVOSUserOnboarding = false
+        Task { await discoverPluginConfig(for: server) }
+    }
+
+    /// Probe the Jellyswarrm Jellyfin plugin for its published Overseerr URL.
+    /// On success the URL (and API key, if any) is persisted to App Group
+    /// UserDefaults so DiscoverView and SettingsView pick it up automatically.
+    /// Silent on failure — a missing plugin is normal.
+    public func discoverPluginConfig(for server: JellyfinServer) async {
+        guard let config = await JellyfinAPIClient.shared.discoverJellyswarrmPlugin(serverURL: server.baseURL),
+              !config.overseerrUrl.isEmpty
+        else { return }
+        sharedDefaults.set(config.overseerrUrl, forKey: "seerrURL")
+        if !config.overseerrApiKey.isEmpty {
+            sharedDefaults.set(config.overseerrApiKey, forKey: "seerrAPIKey")
+        }
+        seerrAutoConfigured = true
     }
 
     /// Called from the onboarding wizard's final step. Clears any onboarding

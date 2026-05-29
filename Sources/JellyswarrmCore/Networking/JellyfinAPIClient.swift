@@ -473,6 +473,26 @@ public actor JellyfinAPIClient {
         return try await perform(request: request)
     }
 
+    // MARK: - Jellyswarrm Plugin Discovery
+
+    /// Probe the server for the Jellyswarrm plugin's published config.
+    /// Returns nil if the plugin is not installed, the endpoint is unreachable,
+    /// or the response can't be decoded. Uses a short timeout so a missing
+    /// plugin never blocks the login flow.
+    public nonisolated func discoverJellyswarrmPlugin(serverURL: URL) async -> PluginConfig? {
+        let url = serverURL.appendingPathComponent("/Plugins/Jellyswarrm/Config")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(PluginConfig.self, from: data)
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Image URL Builder
 
     public nonisolated func imageURL(
@@ -674,6 +694,32 @@ public enum UIDeviceHelper {
         #else
             return "Jellyswarrm Device"
         #endif
+    }
+}
+
+// MARK: - Jellyswarrm Plugin Config
+
+/// Response payload from `GET /Plugins/Jellyswarrm/Config`. The plugin
+/// publishes the server admin's preferred Overseerr/Jellyseerr URL and
+/// (optionally) an API key for shared access.
+public struct PluginConfig: Codable, Sendable {
+    public let overseerrUrl: String
+    public let overseerrApiKey: String
+
+    public init(overseerrUrl: String, overseerrApiKey: String) {
+        self.overseerrUrl = overseerrUrl
+        self.overseerrApiKey = overseerrApiKey
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case overseerrUrl = "OverseerrUrl"
+        case overseerrApiKey = "OverseerrApiKey"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.overseerrUrl = (try? c.decode(String.self, forKey: .overseerrUrl)) ?? ""
+        self.overseerrApiKey = (try? c.decode(String.self, forKey: .overseerrApiKey)) ?? ""
     }
 }
 
