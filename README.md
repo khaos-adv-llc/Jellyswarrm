@@ -9,6 +9,34 @@
 
 ---
 
+## ⚠️ Branch Information
+
+- **`v2-clean-architecture`** (default) — Active development. UIKit shell on tvOS, VLCKit integration via CocoaPods, clean rebuild.
+- **`abandoned/v1`** — Previous SwiftUI-only approach. Abandoned due to tvOS `NavigationStack` limitations causing persistent ghost-title and double-dismiss bugs. Preserved for reference only.
+
+## Setup
+
+1. Clone the repo and check out `v2-clean-architecture`:
+   ```bash
+   git clone https://github.com/khaos-adv-llc/Jellyswarrm.git
+   cd Jellyswarrm
+   git checkout v2-clean-architecture
+   ```
+2. Install CocoaPods if you don't have it:
+   ```bash
+   sudo gem install cocoapods
+   ```
+3. Run `pod install` in the repo root — this fetches **MobileVLCKit** (iOS), **TVVLCKit** (tvOS), and **VLCKit** (macOS):
+   ```bash
+   pod install
+   ```
+4. Open **`Jellyswarm.xcworkspace`** — **NOT** `Jellyswarm.xcodeproj`. Only the workspace includes the VLC pods.
+5. Select your target platform and build.
+
+> ⚠️ Pre-`pod install`, the VLC engine is unavailable: `PlaybackEngine.vlcAvailable` returns `false` and `PlaybackEngineResolver` falls back to AVFoundation. The project still builds and runs without VLC, but HDR10/HLG/DV-Profile-7 routing and exotic-container playback all require the pods.
+
+---
+
 ## Overview
 
 Jellyswarrm is a full-featured, open-source media client for Jellyfin servers. It is designed from the ground up with modern Swift — no Flutter, no Electron, no cross-platform compromises. Every platform gets a native experience that feels at home on the device.
