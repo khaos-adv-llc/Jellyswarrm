@@ -16,15 +16,10 @@ public struct LibraryView: View {
     ]
 
     #if os(tvOS)
-        // Fixed 4-column layout fills a 1920pt screen with comfortably wide
-        // cards. .adaptive on tvOS produces 8-9 tiny columns + huge empty
-        // space when there are only a handful of sections.
-        private let tvColumns = [
-            GridItem(.fixed(380), spacing: 32),
-            GridItem(.fixed(380), spacing: 32),
-            GridItem(.fixed(380), spacing: 32),
-            GridItem(.fixed(380), spacing: 32),
-        ]
+        private let tvColumns = Array(
+            repeating: GridItem(.fixed(200), spacing: 20),
+            count: 4
+        )
     #endif
 
     public var body: some View {
@@ -44,15 +39,17 @@ public struct LibraryView: View {
                 } else {
                     ScrollView {
                         #if os(tvOS)
-                            LazyVGrid(columns: tvColumns, spacing: 40) {
+                            LazyVGrid(columns: tvColumns, spacing: 24) {
                                 ForEach(libraryVM.sections) { section in
                                     NavigationLink(destination: LibrarySectionView(section: section)) {
                                         TVLibrarySectionCard(section: section)
                                     }
                                     .buttonStyle(.plain)
+                                    .focusEffectDisabled(true)
                                 }
                             }
-                            .padding(gridPadding)
+                            .padding(.horizontal, 60)
+                            .padding(.vertical, 24)
                         #else
                             LazyVGrid(columns: columns, spacing: 24) {
                                 ForEach(libraryVM.sections) { section in
@@ -136,36 +133,38 @@ public struct LibraryView: View {
         @FocusState private var isFocused: Bool
 
         var body: some View {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(isFocused ? Color.white.opacity(0.15) : Color.white.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.08))
                         .aspectRatio(16 / 9, contentMode: .fit)
 
                     Image(systemName: section.collectionType?.systemImageName ?? "folder.fill")
-                        .font(.system(size: 56, weight: .light))
+                        .font(.system(size: 44, weight: .light))
                         .foregroundStyle(.white.opacity(isFocused ? 1.0 : 0.6))
                 }
-                .scaleEffect(isFocused ? 1.08 : 1.0)
-                .shadow(color: .black.opacity(isFocused ? 0.5 : 0), radius: 20, y: 8)
-                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+                .scaleEffect(isFocused ? 1.06 : 1.0)
+                .shadow(color: isFocused ? .white.opacity(0.3) : .clear, radius: 10)
+                .animation(.easeInOut(duration: 0.15), value: isFocused)
 
-                VStack(spacing: 4) {
+                VStack(spacing: 2) {
                     Text(section.name)
-                        .font(.headline)
+                        .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
                     if let count = section.childCount {
                         Text("\(count) \(count == 1 ? "item" : "items")")
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundStyle(.white.opacity(0.5))
                     }
                 }
             }
-            .focusable()
-            .focused($isFocused)
+            .background(Color.clear)
+            .focusable(true) { focused in
+                isFocused = focused
+            }
             .focusEffectDisabled(true)
         }
     }
@@ -276,7 +275,12 @@ public struct LibrarySectionView: View {
             }
         }
         .background(AppleTVTheme.background.ignoresSafeArea())
-        .navigationTitle(section.name)
+        #if os(tvOS)
+            .navigationTitle("")
+            .toolbar(.hidden, for: .navigationBar)
+        #else
+            .navigationTitle(section.name)
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
