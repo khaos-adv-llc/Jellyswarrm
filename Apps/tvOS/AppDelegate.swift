@@ -18,6 +18,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = JellyswarrmTabBarController(appState: appState)
         window?.makeKeyAndVisible()
 
+        // Wire the JellyswarrmCore → tvOS UIKit player bridge so
+        // `PlayerViewModel.launchTVOSPlayer()` can present the VLC view
+        // controller through TVNavigationCoordinator without JellyswarrmCore
+        // importing UIKit / TVVLCKit.
+        #if canImport(TVVLCKit)
+        TVPlayerHookInstaller.install()
+        #endif
+
         // Defer onboarding check until after the window is live so it can drive
         // SwiftUI sheet presentation inside the hosted view hierarchy.
         DispatchQueue.main.async { [appState] in

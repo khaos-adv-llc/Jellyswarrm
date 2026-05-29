@@ -28,4 +28,16 @@ public enum PlaybackEngine: String, CaseIterable, Sendable, Codable {
             return "VLC engine — broadest format support with accurate HDR color grading"
         }
     }
+
+    /// True when at least one VLC backend (TVVLCKit, MobileVLCKit, VLCKit) is
+    /// linked into the current build. The Settings UI gates the VLC engine
+    /// option on this, and `PlaybackEngineResolver` falls back to AVFoundation
+    /// when false (e.g. pre-`pod install`).
+    public static var vlcAvailable: Bool {
+        #if canImport(TVVLCKit) || canImport(MobileVLCKit) || canImport(VLCKit)
+        return true
+        #else
+        return false
+        #endif
+    }
 }
