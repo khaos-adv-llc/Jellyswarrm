@@ -35,19 +35,12 @@ public struct MediaCardView: View {
             }
         }
         .frame(width: cardWidth)
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: 12))
         #if os(tvOS)
             .focusable()
             .focused($isFocused)
-            .scaleEffect(isFocused ? 1.05 : 1.0)
-            .zIndex(isFocused ? 1 : 0)
-            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+            .focusEffectDisabled(true)
         #else
-            .scaleEffect(isHovered ? 1.05 : 1.0)
-            .zIndex(isHovered ? 1 : 0)
-            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
             .onHover { isHovered = $0 }
         #endif
     }
@@ -87,6 +80,21 @@ public struct MediaCardView: View {
             }
         }
         .frame(width: cardWidth, height: cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        #if os(tvOS)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.8), lineWidth: 2)
+                    .opacity(isFocused ? 1 : 0)
+            )
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
+        #else
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
+        #endif
     }
 
     private func progressOverlay(fraction: Double) -> some View {
@@ -177,32 +185,7 @@ public struct SeerrMediaCardView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .topTrailing) {
-                AsyncImage(url: posterURL) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image.resizable()
-                            .aspectRatio(2 / 3, contentMode: .fill)
-                    default:
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(white: 0.15), Color(white: 0.10)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .overlay {
-                                Image(systemName: "film").foregroundStyle(.white.opacity(0.25)).font(.largeTitle)
-                            }
-                    }
-                }
-                .posterCard(width: cardWidth, cornerRadius: 12)
-
-                statusBadge
-                    .padding(8)
-            }
-            .frame(width: cardWidth, height: cardHeight)
+            posterImage
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -219,20 +202,57 @@ public struct SeerrMediaCardView: View {
             .frame(width: cardWidth, alignment: .leading)
         }
         .frame(width: cardWidth)
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: 12))
         #if os(tvOS)
             .focusable()
             .focused($isFocused)
-            .scaleEffect(isFocused ? 1.05 : 1.0)
-            .zIndex(isFocused ? 1 : 0)
+            .focusEffectDisabled(true)
+        #else
+            .onHover { isHovered = $0 }
+        #endif
+    }
+
+    private var posterImage: some View {
+        ZStack(alignment: .topTrailing) {
+            AsyncImage(url: posterURL) { phase in
+                switch phase {
+                case let .success(image):
+                    image.resizable()
+                        .aspectRatio(2 / 3, contentMode: .fill)
+                default:
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(white: 0.15), Color(white: 0.10)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .overlay {
+                            Image(systemName: "film").foregroundStyle(.white.opacity(0.25)).font(.largeTitle)
+                        }
+                }
+            }
+            .posterCard(width: cardWidth, cornerRadius: 12)
+
+            statusBadge
+                .padding(8)
+        }
+        .frame(width: cardWidth, height: cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        #if os(tvOS)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.8), lineWidth: 2)
+                    .opacity(isFocused ? 1 : 0)
+            )
+            .scaleEffect(isFocused ? 1.08 : 1.0)
             .shadow(color: .black.opacity(isFocused ? 0.35 : 0), radius: 12, y: 6)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isFocused)
         #else
             .scaleEffect(isHovered ? 1.05 : 1.0)
-            .zIndex(isHovered ? 1 : 0)
             .shadow(color: .black.opacity(isHovered ? 0.35 : 0), radius: 12, y: 6)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
-            .onHover { isHovered = $0 }
         #endif
     }
 

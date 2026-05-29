@@ -189,7 +189,7 @@ public struct PlaybackSettingsView: View {
     public init() {}
 
     @AppStorage("preferDirectPlay") private var preferDirectPlay = true
-    @AppStorage("maxBitrateMbps") private var maxBitrateMbps = 140
+    @AppStorage("maxBitrateMbps") private var maxBitrateMbps = 0
     @AppStorage("defaultSubtitleMode") private var defaultSubtitleMode = "off"
     @AppStorage("playbackEngine") private var playbackEngineRaw = PlaybackEngine.auto.rawValue
     @AppStorage("allowHDRDirectPlay") private var allowHDRDirectPlay = true
@@ -259,5 +259,8 @@ public struct PlaybackSettingsView: View {
         #if !os(tvOS) && !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
+        .onAppear {
+            if maxBitrateMbps == 140 { maxBitrateMbps = 0 }
+        }
     }
 }
